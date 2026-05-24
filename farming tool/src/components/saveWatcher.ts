@@ -2,9 +2,7 @@ import { watch, readTextFile } from '@tauri-apps/plugin-fs';
 import { ProcessedCurrency } from '../types/gameData';
 import { CURRENCY_MAPPINGS } from '../constants';
 import { saveRunCurrencyBackup, saveRecyclingBackup, saveCraftingBackup } from './store';
-
-// A helper to calculate total decimal value automatically combining fragments
-const getCurrencyTotal = (amount: number, fragments: number) => amount + (fragments / 100);
+import { getCurrencyTotal } from '../utils/formatters';
 
 export function processSaveFileChange(oldSave: any, newSave: any) {
   const oldRuns = oldSave?.PastRuns || [];

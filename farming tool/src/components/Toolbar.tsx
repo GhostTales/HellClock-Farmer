@@ -46,10 +46,17 @@ export function Toolbar({
 }: ToolbarProps) {
   const appWindow = getCurrentWindow();
 
+  const toggleMenu = (menuName: 'file' | 'profile' | 'source' | 'dungeon') => {
+    setFileMenuOpen(menuName === 'file' ? !fileMenuOpen : false);
+    setProfileMenuOpen(menuName === 'profile' ? !profileMenuOpen : false);
+    setSourceFilterOpen(menuName === 'source' ? !sourceFilterOpen : false);
+    setDungeonFilterOpen(menuName === 'dungeon' ? !dungeonFilterOpen : false);
+  };
+
   return (
     <div className="toolbar" style={{ display: 'flex', alignItems: 'center' }}>
       <div className="dropdown">
-        <button className="toolbar-btn" onClick={() => { setFileMenuOpen(!fileMenuOpen); setProfileMenuOpen(false); setSourceFilterOpen(false); setDungeonFilterOpen(false); }}>
+        <button className="toolbar-btn" onClick={() => toggleMenu('file')}>
           File
         </button>
         {fileMenuOpen && (
@@ -90,7 +97,7 @@ export function Toolbar({
         <button 
           className="toolbar-btn" 
           disabled={profiles.length === 0} 
-          onClick={() => { setProfileMenuOpen(!profileMenuOpen); setFileMenuOpen(false); setSourceFilterOpen(false); setDungeonFilterOpen(false); }}
+          onClick={() => toggleMenu('profile')}
         >
           Profile: {selectedProfile || (profiles.length > 0 ? 'Select a profile' : 'None')}
         </button>
@@ -111,7 +118,7 @@ export function Toolbar({
       </div>
 
       <div className="dropdown">
-        <button className="toolbar-btn" onClick={() => { setSourceFilterOpen(!sourceFilterOpen); setFileMenuOpen(false); setProfileMenuOpen(false); setDungeonFilterOpen(false); }}>
+        <button className="toolbar-btn" onClick={() => toggleMenu('source')}>
           Filter: Game Over Source
         </button>
         {sourceFilterOpen && (
@@ -144,7 +151,7 @@ export function Toolbar({
 
       {/* Dungeon Select */}
       <div className="dropdown">
-        <button className="toolbar-btn" onClick={() => { setDungeonFilterOpen(!dungeonFilterOpen); setFileMenuOpen(false); setProfileMenuOpen(false); setSourceFilterOpen(false); }}>
+        <button className="toolbar-btn" onClick={() => toggleMenu('dungeon')}>
           Dungeon: {selectedDungeon !== '' ? DUNGEON_NAMES[selectedDungeon] : 'All Dungeons'}
         </button>
         {dungeonFilterOpen && (

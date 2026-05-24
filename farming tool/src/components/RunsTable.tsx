@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
-import { SaveFile } from '../dataManager';
+import { SaveFile, PastRun } from '../dataManager';
 import { CURRENCY_MAPPINGS } from '../constants';
 import { dataStore } from './store';
 import { ProcessedCurrency, RunData } from '../types/gameData';
 import { useChartData } from './useChartData';
+import { formatTime, calculatePerSec, extractStat } from '../utils/formatters';
 import {
   LineChart,
   Line,
@@ -40,16 +41,16 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
   
   // Merge the raw runs with our store backups to get the format the chart expects
   const runs: RunData[] = useMemo(() => {
-    const pastRuns = saveData.pastRunsData?.filter((run: any) => 
+    const pastRuns = saveData.pastRunsData?.filter((run: PastRun) => 
       selectedSources.includes(run._eGameOverSource)
     ) || [];
 
-    return pastRuns.map((run: any) => {
-      const runTime = run._statAggregators?._serializedList?.find((x: any) => x.Key === 'RunTime')?.Value || 0;
-      const soulStones = run._statCounters?._serializedList?.find((x: any) => x.Key === 'SoulStonesCollected')?.Value || 0;
-      const goldGained = run._statAggregators?._serializedList?.find((x: any) => x.Key === 'GoldGained')?.Value || 0;
-      const goldPerSec = runTime > 0 ? Number((goldGained / runTime).toFixed(2)) : 0;
-      const soulStonesPerSec = runTime > 0 ? Number((soulStones / runTime).toFixed(2)) : 0;
+    return pastRuns.map((run: PastRun) => {
+      const runTime = extractStat(run, '_statAggregators', 'RunTime');
+      const soulStones = extractStat(run, '_statCounters', 'SoulStonesCollected');
+      const goldGained = extractStat(run, '_statAggregators', 'GoldGained');
+      const goldPerSec = calculatePerSec(goldGained, runTime);
+      const soulStonesPerSec = calculatePerSec(soulStones, runTime);
 
       return {
         id: run._runID,
@@ -201,9 +202,7 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
                 itemStyle={{ color: 'white' }}
                 formatter={(value: any, name: any) => {
                   if (name === 'Time') {
-                    const mins = Math.floor(Number(value) / 60);
-                    const secs = Math.floor(Number(value) % 60);
-                    return [`${mins}m ${secs}s`, name];
+                    return [formatTime(Number(value)), name];
                   }
                   return [Number(value).toLocaleString(), name];
                 }}

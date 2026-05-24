@@ -6,9 +6,9 @@ export interface RawCurrencyData {
 
 export interface ProcessedCurrency {
   id: number;
-  name: string; // Mapped from ID (e.g., 1 -> "Gold", 2 -> "Gems")
+  name: string; // Mapped from ID (e.g., 1 -> "Gold", 2 -> "Soul Stones")
   texture: string; // Path to the currency texture
-  totalAmount: number; // A computed value, e.g., amount + (fragmentAmount / 100)
+  totalAmount: number; // A computed value, e.g., amount + (fragmentAmount / 6)
   rawAmount: number;
   rawFragments: number;
 }
