@@ -23,7 +23,10 @@ export default function App() {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [sourceFilterOpen, setSourceFilterOpen] = useState(false);
+  const [dungeonFilterOpen, setDungeonFilterOpen] = useState(false);
   const [selectedSources, setSelectedSources] = useState<number[]>([0, 2, 3]);
+  const [selectedDungeon, setSelectedDungeon] = useState<number | ''>('');
+  const [runStats, setRunStats] = useState({ avgGoldPerSec: 0, avgSoulStonesPerSec: 0 });
 
   const openFolder = async (folderPath: string) => {
     setError(null);
@@ -86,6 +89,7 @@ export default function App() {
     setFileMenuOpen(false);
     setProfileMenuOpen(false);
     setSourceFilterOpen(false);
+    setDungeonFilterOpen(false);
   };
 
   return (
@@ -97,11 +101,16 @@ export default function App() {
         setProfileMenuOpen={setProfileMenuOpen}
         sourceFilterOpen={sourceFilterOpen}
         setSourceFilterOpen={setSourceFilterOpen}
+        dungeonFilterOpen={dungeonFilterOpen}
+        setDungeonFilterOpen={setDungeonFilterOpen}
         recentFolders={recentFolders}
         profiles={profiles}
         selectedProfile={selectedProfile}
         selectedSources={selectedSources}
         setSelectedSources={setSelectedSources}
+        selectedDungeon={selectedDungeon}
+        setSelectedDungeon={setSelectedDungeon}
+        runStats={runStats}
         handleSelectFolder={handleSelectFolder}
         openFolder={openFolder}
         handleSelectProfile={handleSelectProfile}
@@ -120,6 +129,8 @@ export default function App() {
                 saveData={saveData} 
                 selectedSources={selectedSources} 
                 selectedProfile={selectedProfile} 
+                selectedDungeon={selectedDungeon}
+                setRunStats={setRunStats}
               />
             )}
           </>

@@ -45,3 +45,15 @@ export const GAME_OVER_SOURCES = [
   { id: 3, label: "Completed" },
   { id: 4, label: "Manual Finish With Portal" }
 ];
+
+export const CURRENCY_MAPPINGS: Record<number, { name: string; texture: string }> = {
+  0: { name: "Tool of Thinkering", texture: "/textures/IconTool_Tinkering.png" },
+  1: { name: "Tool of Enhancement", texture: "/textures/IconTool_Enhancement.png" },
+  2: { name: "Greater Tool of Enhancement", texture: "/textures/IconTool_GreaterEnhancement.png" },
+  3: { name: "Tool of Locksmithing", texture: "/textures/IconTool_Locksmithing.png" },
+  4: { name: "Imbued Tool of Fury", texture: "/textures/IconTool_Fury.png" },
+  5: { name: "Imbued Tool of Faith", texture: "/textures/IconTool_Faith.png" },
+  6: { name: "Imbued Tool of Discipline", texture: "/textures/IconTool_Discipline.png" },
+  7: { name: "Corrupted Tool", texture: "/textures/IconTool_Corrupted.png" },
+  8: { name: "Divine Tool", texture: "/textures/IconTool_Divine.png" },
+};

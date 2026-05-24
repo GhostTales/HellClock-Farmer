@@ -1,4 +1,4 @@
-import { GAME_OVER_SOURCES } from '../constants';
+import { GAME_OVER_SOURCES, DUNGEON_NAMES } from '../constants';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 interface ToolbarProps {
@@ -8,11 +8,16 @@ interface ToolbarProps {
   setProfileMenuOpen: (open: boolean) => void;
   sourceFilterOpen: boolean;
   setSourceFilterOpen: (open: boolean) => void;
+  dungeonFilterOpen: boolean;
+  setDungeonFilterOpen: (open: boolean) => void;
   recentFolders: string[];
   profiles: string[];
   selectedProfile: string | null;
   selectedSources: number[];
   setSelectedSources: React.Dispatch<React.SetStateAction<number[]>>;
+  selectedDungeon: number | '';
+  setSelectedDungeon: React.Dispatch<React.SetStateAction<number | ''>>;
+  runStats: { avgGoldPerSec: number; avgSoulStonesPerSec: number };
   handleSelectFolder: () => void;
   openFolder: (folderPath: string) => void;
   handleSelectProfile: (fileName: string) => void;
@@ -25,11 +30,16 @@ export function Toolbar({
   setProfileMenuOpen,
   sourceFilterOpen,
   setSourceFilterOpen,
+  dungeonFilterOpen,
+  setDungeonFilterOpen,
   recentFolders,
   profiles,
   selectedProfile,
   selectedSources,
   setSelectedSources,
+  selectedDungeon,
+  setSelectedDungeon,
+  runStats,
   handleSelectFolder,
   openFolder,
   handleSelectProfile,
@@ -39,7 +49,7 @@ export function Toolbar({
   return (
     <div className="toolbar" style={{ display: 'flex', alignItems: 'center' }}>
       <div className="dropdown">
-        <button className="toolbar-btn" onClick={() => { setFileMenuOpen(!fileMenuOpen); setProfileMenuOpen(false); setSourceFilterOpen(false); }}>
+        <button className="toolbar-btn" onClick={() => { setFileMenuOpen(!fileMenuOpen); setProfileMenuOpen(false); setSourceFilterOpen(false); setDungeonFilterOpen(false); }}>
           File
         </button>
         {fileMenuOpen && (
@@ -80,7 +90,7 @@ export function Toolbar({
         <button 
           className="toolbar-btn" 
           disabled={profiles.length === 0} 
-          onClick={() => { setProfileMenuOpen(!profileMenuOpen); setFileMenuOpen(false); setSourceFilterOpen(false); }}
+          onClick={() => { setProfileMenuOpen(!profileMenuOpen); setFileMenuOpen(false); setSourceFilterOpen(false); setDungeonFilterOpen(false); }}
         >
           Profile: {selectedProfile || (profiles.length > 0 ? 'Select a profile' : 'None')}
         </button>
@@ -101,7 +111,7 @@ export function Toolbar({
       </div>
 
       <div className="dropdown">
-        <button className="toolbar-btn" onClick={() => { setSourceFilterOpen(!sourceFilterOpen); setFileMenuOpen(false); setProfileMenuOpen(false); }}>
+        <button className="toolbar-btn" onClick={() => { setSourceFilterOpen(!sourceFilterOpen); setFileMenuOpen(false); setProfileMenuOpen(false); setDungeonFilterOpen(false); }}>
           Filter: Game Over Source
         </button>
         {sourceFilterOpen && (
@@ -131,6 +141,44 @@ export function Toolbar({
           </div>
         )}
       </div>
+
+      {/* Dungeon Select */}
+      <div className="dropdown">
+        <button className="toolbar-btn" onClick={() => { setDungeonFilterOpen(!dungeonFilterOpen); setFileMenuOpen(false); setProfileMenuOpen(false); setSourceFilterOpen(false); }}>
+          Dungeon: {selectedDungeon !== '' ? DUNGEON_NAMES[selectedDungeon] : 'All Dungeons'}
+        </button>
+        {dungeonFilterOpen && (
+          <div className="dropdown-menu" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <button
+              className="dropdown-item"
+              onClick={() => { setSelectedDungeon(''); setDungeonFilterOpen(false); }}
+              style={{ fontWeight: selectedDungeon === '' ? 'bold' : 'normal', color: selectedDungeon === '' ? '#fff' : '#ccc' }}
+            >
+              All Dungeons
+            </button>
+            {Object.entries(DUNGEON_NAMES)
+              .filter(([id]) => parseInt(id) !== -1)
+              .map(([idStr, name]) => (
+                <button
+                  key={idStr}
+                  className="dropdown-item"
+                  onClick={() => { setSelectedDungeon(parseInt(idStr, 10)); setDungeonFilterOpen(false); }}
+                  style={{ fontWeight: selectedDungeon === parseInt(idStr, 10) ? 'bold' : 'normal', color: selectedDungeon === parseInt(idStr, 10) ? '#fff' : '#ccc' }}
+                >
+                  {name}
+                </button>
+              ))}
+          </div>
+        )}
+      </div>
+
+      {/* Run Stats */}
+      {runStats.avgGoldPerSec > 0 || runStats.avgSoulStonesPerSec > 0 ? (
+        <div style={{ marginLeft: '20px', color: '#ccc', fontSize: '13px', display: 'flex', gap: '15px', pointerEvents: 'none' }}>
+          <span>Avg Gold/s: <b style={{ color: '#ffd700' }}>{runStats.avgGoldPerSec.toLocaleString()}</b></span>
+          <span>Avg Souls/s: <b style={{ color: '#00C49F' }}>{runStats.avgSoulStonesPerSec.toLocaleString()}</b></span>
+        </div>
+      ) : null}
 
       {/* Spacer to push controls to the right and provide a large draggable area */}
       <div data-tauri-drag-region style={{ flexGrow: 1, height: '100%', minHeight: '30px' }}></div>
