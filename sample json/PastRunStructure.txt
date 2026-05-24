@@ -1,0 +1,204 @@
+"pastRunsData": [
+    {
+        "_runID": int,
+        "_dungeonID": int,
+        "_damageBySkill": {
+            "_serializedList": [
+                {
+                    "Key": int,
+                    "Value": double
+                },
+                {
+                    "Key": int,
+                    "Value": double
+                },
+                {
+                    "Key": int,
+                    "Value": double
+                },
+                {
+                    "Key": int,
+                    "Value": double
+                }
+            ]
+        },
+        "_damageByType": {
+            "_serializedList": [
+                {
+                    "Key": int,
+                    "Value": double
+                },
+                {
+                    "Key": int,
+                    "Value": double
+                }
+            ]
+        },
+        "_statCounters": {
+            "_serializedList": [
+                {
+                    "Key": "LevelAchieved",
+                    "Value": int
+                },
+                {
+                    "Key": "EnemiesDefeated",
+                    "Value": int
+                },
+                {
+                    "Key": "RegularEnemiesDefeated",
+                    "Value": int
+                },
+                {
+                    "Key": "ShrinesActivated",
+                    "Value": int
+                },
+                {
+                    "Key": "EliteEnemiesDefeated",
+                    "Value": int
+                },
+                {
+                    "Key": "UniqueEnemiesDefeated",
+                    "Value": int
+                },
+                {
+                    "Key": "SoulStonesCollected",
+                    "Value": int
+                },
+                {
+                    "Key": "TotensPurchased",
+                    "Value": int
+                },
+                {
+                    "Key": "RerollsPurchased",
+                    "Value": int
+                },
+                {
+                    "Key": "TotalRuns",
+                    "Value": int
+                },
+                {
+                    "Key": "TotalDeaths",
+                    "Value": int
+                },
+                {
+                    "Key": "RunsPerDungeon",
+                    "Value": int
+                },
+                {
+                    "Key": "DeathsInDungeon",
+                    "Value": int
+                },
+                {
+                    "Key": "RunsToCompleteDungeonForTheFirstTime",
+                    "Value": int
+                }
+            ]
+        },
+        "_statAggregators": {
+            "_serializedList": [
+                {
+                    "Key": "DamageDealt",
+                    "Value": double
+                },
+                {
+                    "Key": "ExperienceGained",
+                    "Value": double
+                },
+                {
+                    "Key": "GoldGained",
+                    "Value": double
+                },
+                {
+                    "Key": "DamageReceived",
+                    "Value": double
+                },
+                {
+                    "Key": "GoldSpent",
+                    "Value": double
+                },
+                {
+                    "Key": "GoldSpentOnTotemsPurchased",
+                    "Value": double
+                },
+                {
+                    "Key": "GoldSpentOnReRollsPurchased",
+                    "Value": double
+                },
+                {
+                    "Key": "GameplayTotalTime",
+                    "Value": double
+                },
+                {
+                    "Key": "DungeonBestTime",
+                    "Value": double
+                },
+                {
+                    "Key": "RunTime",
+                    "Value": double
+                }
+            ]
+        },
+        "_statBools": {
+            "_serializedList": [
+                {
+                    "Key": "CurrentDungeonCompleted",
+                    "Value": bool
+                }
+            ]
+        },
+        "_relicsCollected": {
+            "_serializedList": [
+                {
+                    "Key": "RelicsCollected",
+                    "Value": [
+                        {
+                            "_relicBaseDefinitionID": int,
+                            "_eRelicRarity": int,
+                            "_ascended": bool,
+                            "_upgradeLevel": int,
+                            "_tier": int,
+                            "_affixesData": [
+                                {
+                                    "_relicAffixDefinitionId": int,
+                                    "_rollValue": double,
+                                    "_tier": int,
+                                    "_locked": bool
+                                },
+                            ],
+                            "_implicitAffixesData": [
+                                {
+                                    "_eImplicitAffixCategory": int,
+                                    "_relicAffixData": {
+                                        "_relicAffixDefinitionId": int,
+                                        "_rollValue": double,
+                                        "_tier": int,
+                                        "_locked": bool
+                                    }
+                                },
+                            ],
+                            "_position": {
+                                "x": int,
+                                "y": int
+                            },
+                            "_isCorrupted": bool,
+                            "_isDivined": bool,
+                            "_showNotification": bool
+                        }
+                    ]
+                }
+            ]
+        },
+        "_banishedBlessings": [
+            int,
+        ],
+        "_lastDamageInstances": [
+            {
+                "_damageBases": [
+                    {}
+                ],
+                "_totalDamage": double
+            },
+        ],
+        "_eGameOverSource": int
+    },
+]

@@ -1,0 +1,9 @@
+"currencySaveData": {
+    "_persistentData": [
+        {
+            "_currencyID": int,
+            "_amount": int,
+            "_fragmentAmount": int
+        },
+    ]
+},
