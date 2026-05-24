@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Ghost-Tales",
-  "license": "ISC",
+  "license": "AGPL-3.0 license",
   "devDependencies": {
     "electron": "^42.2.0"
   }
