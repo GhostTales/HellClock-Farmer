@@ -7,7 +7,20 @@ export const dataStore = await load('farming-data.json');
 export async function saveRunCurrencyBackup(runId: number, currencies: ProcessedCurrency[]) {
   const existingBackups = await dataStore.get<Record<number, ProcessedCurrency[]>>('runCurrencies') || {};
   
-  existingBackups[runId] = currencies;
+  if (existingBackups[runId]) {
+    currencies.forEach(newC => {
+      const existing = existingBackups[runId].find(c => c.id === newC.id);
+      if (existing) {
+        existing.totalAmount += newC.totalAmount;
+        existing.rawAmount = newC.rawAmount;
+        existing.rawFragments = newC.rawFragments;
+      } else {
+        existingBackups[runId].push(newC);
+      }
+    });
+  } else {
+    existingBackups[runId] = currencies;
+  }
   
   await dataStore.set('runCurrencies', existingBackups);
   await dataStore.save();
@@ -21,6 +34,8 @@ export async function saveRecyclingBackup(eventId: string, currencies: Processed
       const existing = existingBackups[eventId].find(c => c.id === newC.id);
       if (existing) {
         existing.totalAmount += newC.totalAmount;
+        existing.rawAmount = newC.rawAmount;
+        existing.rawFragments = newC.rawFragments;
       } else {
         existingBackups[eventId].push(newC);
       }
@@ -41,6 +56,8 @@ export async function saveCraftingBackup(eventId: string, currencies: ProcessedC
       const existing = existingBackups[eventId].find(c => c.id === newC.id);
       if (existing) {
         existing.totalAmount += newC.totalAmount;
+        existing.rawAmount = newC.rawAmount;
+        existing.rawFragments = newC.rawFragments;
       } else {
         existingBackups[eventId].push(newC);
       }

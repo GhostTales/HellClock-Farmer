@@ -8,7 +8,7 @@ export interface ProcessedCurrency {
   id: number;
   name: string; // Mapped from ID (e.g., 1 -> "Gold", 2 -> "Soul Stones")
   texture: string; // Path to the currency texture
-  totalAmount: number; // A computed value, e.g., amount + (fragmentAmount / 6)
+  totalAmount: number; // The computed DELTA value for this event
   rawAmount: number;
   rawFragments: number;
 }
@@ -22,9 +22,9 @@ export interface RunData {
   // Focus on the most important data
   currencies: ProcessedCurrency[];
   soulStones: number;
-  soulStonesPerSec: number;
+  soulStonesPerMin: number;
   goldGained: number;
-  goldPerSec: number;
+  goldPerMin: number;
   runTime: number; // in seconds
 }
 

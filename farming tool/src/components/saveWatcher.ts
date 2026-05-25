@@ -17,6 +17,8 @@ export function processSaveFileChange(oldSave: any, newSave: any) {
   const oldCurrencies = oldCurrencyData?._persistentData || [];
   const newCurrencies = newCurrencyData?._persistentData || [];
 
+  let isOngoingRunUpdate = false;
+
   newCurrencies.forEach((newCurr: any) => {
     const oldCurr = oldCurrencies.find(
       (c: any) => c._currencyID === newCurr._currencyID
@@ -30,9 +32,11 @@ export function processSaveFileChange(oldSave: any, newSave: any) {
     
     if (delta !== 0) {
       const mapping = CURRENCY_MAPPINGS[newCurr._currencyID];
+      const name = mapping ? mapping.name : `Currency ${newCurr._currencyID}`;
+
       const processed: ProcessedCurrency = {
         id: newCurr._currencyID,
-        name: mapping ? mapping.name : `Currency ${newCurr._currencyID}`,
+        name,
         texture: mapping ? mapping.texture : "",
         totalAmount: Math.abs(delta), // Store as absolute value
         rawAmount: newCurr._amount,
@@ -41,6 +45,18 @@ export function processSaveFileChange(oldSave: any, newSave: any) {
 
       if (delta > 0) {
         gainedCurrencies.push(processed);
+
+        // Heuristic to detect if this save update happened *during* an ongoing run
+        // Recycling only gives fragments (except Tinkering).
+        // Divine currency cannot be gained from recycling at all.
+        const nameLower = name.toLowerCase();
+        const isDivine = nameLower.includes('divine');
+        const isTinkering = nameLower.includes('tinkering')
+        
+        // We can lower this to >= 1 since recycling non-tinkering items only gives fragments
+        if (isDivine || (!isTinkering && delta >= 1)) {
+          isOngoingRunUpdate = true;
+        }
       } else if (delta < 0) {
         spentCurrencies.push(processed);
       }
@@ -51,7 +67,8 @@ export function processSaveFileChange(oldSave: any, newSave: any) {
     isNewRun,
     latestRunId: newRuns.length > 0 ? newRuns[newRuns.length - 1]._runID : 0,
     gainedCurrencies,
-    spentCurrencies
+    spentCurrencies,
+    isOngoingRunUpdate
   };
 }
 
@@ -68,6 +85,9 @@ export async function startSaveWatcher(saveFilePath: string) {
   };
   let lastContent: string = "";
   let lastError: string | null = null;
+  
+  let ongoingRunGainedBuffer: ProcessedCurrency[] = [];
+  let ongoingRunSpentBuffer: ProcessedCurrency[] = [];
   
   try {
     lastContent = await readTextFile(saveFilePath);
@@ -106,18 +126,67 @@ export async function startSaveWatcher(saveFilePath: string) {
       // Update lastContent AFTER parsing successfully to prevent a corrupted read from breaking future reads
       lastContent = currentContent;
 
-      const { isNewRun, latestRunId, gainedCurrencies, spentCurrencies } = processSaveFileChange(previousSaveData, newSaveData);
+      const { isNewRun, latestRunId, gainedCurrencies, spentCurrencies, isOngoingRunUpdate } = processSaveFileChange(previousSaveData, newSaveData);
 
-      console.log(`[SaveWatcher] Change analysis - isNewRun: ${isNewRun}, latestRunId: ${latestRunId}, gained: ${gainedCurrencies.length}, spent: ${spentCurrencies.length}`);
+      console.log(`[SaveWatcher] Change analysis - isNewRun: ${isNewRun}, latestRunId: ${latestRunId}, gained: ${gainedCurrencies.length}, spent: ${spentCurrencies.length}, isOngoingRunUpdate: ${isOngoingRunUpdate}`);
       
-      if (isNewRun && latestRunId != null && gainedCurrencies.length > 0) {
-        console.log(`[SaveWatcher] Saving run backup for run ID ${latestRunId}`, gainedCurrencies);
-        await saveRunCurrencyBackup(latestRunId, gainedCurrencies);
+      // Buffer ongoing run updates so they don't get logged as recycling
+      if (!isNewRun && isOngoingRunUpdate) {
+        console.log("[SaveWatcher] Detected ongoing run currency update, buffering...");
+        
+        gainedCurrencies.forEach(gc => {
+          const existing = ongoingRunGainedBuffer.find(c => c.id === gc.id);
+          if (existing) {
+            existing.totalAmount += gc.totalAmount;
+            existing.rawAmount = gc.rawAmount;
+            existing.rawFragments = gc.rawFragments;
+          } else {
+            ongoingRunGainedBuffer.push({ ...gc });
+          }
+        });
+        
+        spentCurrencies.forEach(sc => {
+          const existing = ongoingRunSpentBuffer.find(c => c.id === sc.id);
+          if (existing) {
+            existing.totalAmount += sc.totalAmount;
+            existing.rawAmount = sc.rawAmount;
+            existing.rawFragments = sc.rawFragments;
+          } else {
+            ongoingRunSpentBuffer.push({ ...sc });
+          }
+        });
+        
+        previousSaveData = newSaveData;
+        return;
+      }
+
+      let combinedGained = [...gainedCurrencies];
+
+      if (isNewRun && latestRunId != null) {
+        // If a new run just finished, merge any buffered currencies into this run's total
+        if (ongoingRunGainedBuffer.length > 0) {
+          ongoingRunGainedBuffer.forEach(bgc => {
+            const existing = combinedGained.find(c => c.id === bgc.id);
+            if (existing) {
+              existing.totalAmount += bgc.totalAmount;
+              // rawAmount and rawFragments from combinedGained (latest tick) are preserved
+            } else {
+              combinedGained.push({ ...bgc });
+            }
+          });
+          ongoingRunGainedBuffer = [];
+          ongoingRunSpentBuffer = [];
+        }
+
+        if (combinedGained.length > 0) {
+          console.log(`[SaveWatcher] Saving run backup for run ID ${latestRunId}`, combinedGained);
+          await saveRunCurrencyBackup(latestRunId, combinedGained);
+        }
       } else if (!isNewRun && latestRunId != null) {
         const eventId = latestRunId.toString(); // Group out-of-run actions by the run they follow
-        if (gainedCurrencies.length > 0) {
-          console.log(`[SaveWatcher] Saving recycling backup for event ${eventId}`, gainedCurrencies);
-          await saveRecyclingBackup(eventId, gainedCurrencies);
+        if (combinedGained.length > 0) {
+          console.log(`[SaveWatcher] Saving recycling backup for event ${eventId}`, combinedGained);
+          await saveRecyclingBackup(eventId, combinedGained);
         }
         if (spentCurrencies.length > 0) {
           console.log(`[SaveWatcher] Saving crafting backup for event ${eventId}`, spentCurrencies);

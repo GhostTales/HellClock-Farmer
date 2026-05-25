@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { RunData } from '../types/gameData';
+import { RunData, ProcessedCurrency } from '../types/gameData';
+import { getCurrencyTotal } from '../utils/formatters';
 
 export interface FilterOptions {
   sources: number[];
@@ -8,7 +9,11 @@ export interface FilterOptions {
   runIdRange: [number, number] | null; // Track by Run ID instead of Date
 }
 
-export function useChartData(runs: RunData[], initialFilters: FilterOptions) {
+export function useChartData(
+  runs: RunData[], 
+  craftingEvents: Record<string, ProcessedCurrency[]>,
+  initialFilters: FilterOptions
+) {
   const [filters, setFilters] = useState<FilterOptions>(initialFilters);
 
   // 1. Filter the raw runs based on user selection
@@ -70,5 +75,54 @@ export function useChartData(runs: RunData[], initialFilters: FilterOptions) {
     }));
   }, [filteredRuns]);
 
-  return { filters, setFilters, currencyChartData, statsChartData, filteredRuns };
+  // 4. Transform all events for a total currency chart
+  const totalChartData = useMemo(() => {
+    const dataPoints: Record<string, any>[] = [];
+
+    // Add runs (which include recycling)
+    runs.forEach(run => {
+      if (filters.runIdRange) {
+        if (run.id < filters.runIdRange[0] || run.id > filters.runIdRange[1]) return;
+      }
+      if (!run.currencies || run.currencies.length === 0) return;
+      
+      const dataPoint: Record<string, any> = {
+        runName: `Run ${run.id}`,
+        runId: run.id,
+        sortOrder: run.id * 10
+      };
+      
+      run.currencies.forEach(currency => {
+        if (filters.currencyIds.length === 0 || filters.currencyIds.includes(currency.id)) {
+          dataPoint[currency.name] = getCurrencyTotal(currency.rawAmount, currency.rawFragments);
+        }
+      });
+      dataPoints.push(dataPoint);
+    });
+
+    // Add crafting events
+    Object.entries(craftingEvents).forEach(([eventId, currencies]) => {
+      const runId = parseInt(eventId, 10);
+      if (filters.runIdRange) {
+        if (runId < filters.runIdRange[0] || runId > filters.runIdRange[1]) return;
+      }
+
+      const dataPoint: Record<string, any> = {
+        runName: `Run ${runId} Crafting`,
+        runId: runId,
+        sortOrder: runId * 10 + 1 // Place after the run
+      };
+      
+      currencies.forEach(currency => {
+        if (filters.currencyIds.length === 0 || filters.currencyIds.includes(currency.id)) {
+          dataPoint[currency.name] = getCurrencyTotal(currency.rawAmount, currency.rawFragments);
+        }
+      });
+      dataPoints.push(dataPoint);
+    });
+
+    return dataPoints.sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [runs, craftingEvents, filters.currencyIds, filters.runIdRange]);
+
+  return { filters, setFilters, currencyChartData, statsChartData, totalChartData, filteredRuns };
 }

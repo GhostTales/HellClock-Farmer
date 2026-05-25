@@ -4,7 +4,7 @@ import { CURRENCY_MAPPINGS } from '../constants';
 import { dataStore } from './store';
 import { ProcessedCurrency, RunData } from '../types/gameData';
 import { useChartData } from './useChartData';
-import { formatTime, calculatePerSec, extractStat } from '../utils/formatters';
+import { formatTime, calculatePerSec, extractStat} from '../utils/formatters';
 import {
   LineChart,
   Line,
@@ -15,21 +15,90 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
+import './RunsTable.css';
 
 interface RunsTableProps {
   saveData: SaveFile;
   selectedSources: number[];
   selectedProfile: string | null;
   selectedDungeon: number | '';
-  setRunStats: React.Dispatch<React.SetStateAction<{ avgGoldPerSec: number; avgSoulStonesPerSec: number }>>;
+  setRunStats: React.Dispatch<React.SetStateAction<{ avgGoldPerMin: number; avgSoulStonesPerMin: number }>>;
 }
 
 // A simple palette for the lines on the graph
 const CHART_COLORS = ['#6b6858', '#82a1ca', '#ffc658', '#ff7300', '#ff0000', '#00C49F', '#37be2a', '#8a37ce', '#c1cad1'];
 
+const CustomCurrencyTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="custom-tooltip">
+        <p className="custom-tooltip-title">{label}</p>
+        {payload
+          .filter((entry: any) => Number(entry.value) !== 0 || entry.name === 'Time')
+          .map((entry: any, index: number) => {
+          const name = entry.name;
+          const value = Number(entry.value);
+          
+          if (name === 'Time') {
+            return (
+              <div key={index} className="custom-tooltip-row" style={{ color: entry.color }}>
+                <span>{name}:</span>
+                <span className="custom-tooltip-value">{formatTime(value)}</span>
+              </div>
+            );
+          }
+
+          // Check if this is a mapped currency
+          const mapping = Object.values(CURRENCY_MAPPINGS).find((m: any) => m.name === name) as any;
+          
+          if (mapping) {
+            const isTinkering = name.toLowerCase().includes('tinkering');
+            const absValue = Math.abs(value);
+            const full = Math.floor(absValue);
+            const fragments = isTinkering ? 0 : Math.round((absValue - full) * 6);
+            
+            const isNegative = value < 0;
+            const fullSign = (isNegative && (full > 0 || isTinkering)) ? '-' : '';
+            const fragSign = isNegative ? '-' : '';
+
+            return (
+              <div key={index} className="custom-tooltip-row" style={{ color: entry.color }}>
+                <div className="custom-tooltip-group">
+                  {mapping.texture && <img src={mapping.texture} alt={name} className="custom-tooltip-icon" />}
+                  <span className="custom-tooltip-value mapped">
+                    {fullSign}{isTinkering ? absValue.toLocaleString(undefined, { maximumFractionDigits: 3 }) : full.toLocaleString()}
+                  </span>
+                </div>
+                {!isTinkering && (
+                  <div className="custom-tooltip-group fragment">
+                    <img src={mapping.fragmentTexture} alt={`Fragment`} className="custom-tooltip-icon" />
+                    <span className="custom-tooltip-fragment-text">{fragSign}{fragments}</span>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // Fallback for Gold, Soul Stones, or unknown currencies
+          return (
+            <div key={index} className="custom-tooltip-row" style={{ color: entry.color }}>
+              <span>{name}:</span>
+              <span className="custom-tooltip-value">
+                {value.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  return null;
+};
+
 export function RunsTable({ saveData, selectedSources, selectedProfile, selectedDungeon, setRunStats }: RunsTableProps) {
   const [runCurrencies, setRunCurrencies] = useState<Record<number, ProcessedCurrency[]>>({});
-  const [outOfRunEvents, setOutOfRunEvents] = useState<{eventId: string, isCrafting: boolean, currencies: ProcessedCurrency[]}[]>([]);
+  const [recyclingEvents, setRecyclingEvents] = useState<Record<string, ProcessedCurrency[]>>({});
+  const [craftingEvents, setCraftingEvents] = useState<Record<string, ProcessedCurrency[]>>({});
   const [internalSaveData, setInternalSaveData] = useState<SaveFile>(saveData);
 
   // Sync with prop when parent updates it (e.g. manual refresh or profile switch)
@@ -44,17 +113,9 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
       setRunCurrencies(backups);
 
       const recycle = await dataStore.get<Record<string, ProcessedCurrency[]>>('recyclingEvents') || {};
+      setRecyclingEvents(recycle);
       const craft = await dataStore.get<Record<string, ProcessedCurrency[]>>('craftingEvents') || {};
-      
-      const events: {eventId: string, isCrafting: boolean, currencies: ProcessedCurrency[]}[] = [];
-      Object.entries(recycle).forEach(([eventId, currencies]) => {
-        events.push({ eventId, isCrafting: false, currencies });
-      });
-      Object.entries(craft).forEach(([eventId, currencies]) => {
-        events.push({ eventId, isCrafting: true, currencies: currencies.map(c => ({...c, totalAmount: -c.totalAmount})) });
-      });
-      events.sort((a, b) => Number(a.eventId) - Number(b.eventId));
-      setOutOfRunEvents(events);
+      setCraftingEvents(craft);
     };
     loadCurrencies();
 
@@ -81,26 +142,12 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
 
     // Also listen for out-of-run events so the current currency point updates
     dataStore.onKeyChange<Record<string, ProcessedCurrency[]>>('recyclingEvents', async (events) => {
-      if (events) {
-        setOutOfRunEvents(prev => {
-          const craft = prev.filter(p => p.isCrafting);
-          const recycleList = Object.entries(events).map(([eventId, currencies]) => ({ eventId, isCrafting: false, currencies }));
-          const combined = [...craft, ...recycleList].sort((a, b) => Number(a.eventId) - Number(b.eventId));
-          return combined;
-        });
-      }
+      if (events) setRecyclingEvents(events);
       await fetchLatestSave();
     }).then(fn => unlistenRecycle = fn);
 
     dataStore.onKeyChange<Record<string, ProcessedCurrency[]>>('craftingEvents', async (events) => {
-      if (events) {
-        setOutOfRunEvents(prev => {
-          const recycle = prev.filter(p => !p.isCrafting);
-          const craftList = Object.entries(events).map(([eventId, currencies]) => ({ eventId, isCrafting: true, currencies: currencies.map(c => ({...c, totalAmount: -c.totalAmount})) }));
-          const combined = [...recycle, ...craftList].sort((a, b) => Number(a.eventId) - Number(b.eventId));
-          return combined;
-        });
-      }
+      if (events) setCraftingEvents(events);
       await fetchLatestSave();
     }).then(fn => unlistenCraft = fn);
 
@@ -119,84 +166,47 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
       const runTime = extractStat(run, '_statAggregators', 'RunTime');
       const soulStones = extractStat(run, '_statCounters', 'SoulStonesCollected');
       const goldGained = extractStat(run, '_statAggregators', 'GoldGained');
-      const goldPerSec = calculatePerSec(goldGained, runTime);
-      const soulStonesPerSec = calculatePerSec(soulStones, runTime);
+      const goldPerMin = calculatePerSec(goldGained, runTime / 60);
+      const soulStonesPerMin = calculatePerSec(soulStones, runTime / 60);
+
+      const baseCurrencies = runCurrencies[run._runID] || [];
+      const recycleCurrencies = recyclingEvents[run._runID.toString()] || [];
+
+      const combinedCurrencies = [...baseCurrencies];
+      recycleCurrencies.forEach(rc => {
+        const existing = combinedCurrencies.find(c => c.id === rc.id);
+        if (existing) {
+          existing.totalAmount += rc.totalAmount;
+          existing.rawAmount = rc.rawAmount;
+          existing.rawFragments = rc.rawFragments;
+        } else {
+          combinedCurrencies.push({ ...rc });
+        }
+      });
 
       return {
         id: run._runID,
         sourceId: run._dungeonID,
         gameOverSource: run._eGameOverSource,
-        currencies: runCurrencies[run._runID] || [],
+        currencies: combinedCurrencies,
         soulStones,
-        soulStonesPerSec,
+        soulStonesPerMin,
         goldGained,
-        goldPerSec,
+        goldPerMin,
         runTime
       };
     });
 
-    // Append out-of-run events as pseudo-runs to accurately plot deltas over time
-    if (internalSaveData.currencySaveData && internalSaveData.currencySaveData._persistentData) {
-      const latestRunId = pastRuns.length > 0 ? pastRuns[pastRuns.length - 1]._runID : 0;
-      outOfRunEvents.forEach((event, index) => {
-        const currentCurrencies: ProcessedCurrency[] = internalSaveData.currencySaveData._persistentData.map(c => {
-          const mapping = CURRENCY_MAPPINGS[c._currencyID];
-          const outOfRunMatch = event.currencies.find(o => o.id === c._currencyID);
-          return {
-            id: c._currencyID,
-            name: mapping ? mapping.name : `Currency ${c._currencyID}`,
-            texture: mapping ? mapping.texture : "",
-            totalAmount: outOfRunMatch ? outOfRunMatch.totalAmount : 0,
-            rawAmount: c._amount,
-            rawFragments: c._fragmentAmount
-          };
-        });
-  
-        runs.push({
-          id: latestRunId + 1 + index, // Places them sequentially at the end of the chart timeline
-          sourceId: -1, // Excludes it from standard dungeon filters
-          gameOverSource: -1, // Excludes it from game over filters (Base Stats Chart)
-          currencies: currentCurrencies,
-          soulStones: 0,
-          soulStonesPerSec: 0,
-          goldGained: 0,
-          goldPerSec: 0,
-          runTime: 0
-        });
-      });
-    }
-
     return runs;
-  }, [internalSaveData, runCurrencies, outOfRunEvents]);
+  }, [internalSaveData, runCurrencies, recyclingEvents]);
 
   // Set up the custom hook
-  const { filters, setFilters, currencyChartData, statsChartData, filteredRuns } = useChartData(allRuns, {
+  const { filters, setFilters, currencyChartData, statsChartData, totalChartData, filteredRuns } = useChartData(allRuns, craftingEvents, {
     sources: [], // Empty means show all supported dungeons
     gameOverSources: selectedSources,
     currencyIds: Object.keys(CURRENCY_MAPPINGS).map(Number), // Show all currencies by default
     runIdRange: null
   });
-
-  // Override the X-Axis label for our pseudo-runs
-  const displayCurrencyData = useMemo(() => {
-    if (currencyChartData.length === 0) return [];
-    
-    const latestActualRunId = internalSaveData.pastRunsData?.length > 0 
-      ? internalSaveData.pastRunsData[internalSaveData.pastRunsData.length - 1]._runID 
-      : 0;
-
-    return currencyChartData.map(d => {
-      if (d.runId > latestActualRunId) {
-        const offset = d.runId - latestActualRunId - 1;
-        const event = outOfRunEvents[offset];
-        return {
-          ...d,
-          runName: event ? (event.isCrafting ? "Crafting" : "Recycling") : "Action"
-        };
-      }
-      return d;
-    });
-  }, [currencyChartData, internalSaveData, outOfRunEvents]);
 
   // Sync external selectedDungeon with internal useChartData filter
   useEffect(() => {
@@ -207,17 +217,72 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
     }));
   }, [selectedDungeon, selectedSources, setFilters]);
 
+  // Fill in missing currency values with 0 for currencyChartData (gained/spent),
+  // but only AFTER the currency has been gained for the first time.
+  const filledCurrencyChartData = useMemo(() => {
+    const seenCurrencies = new Set<string>();
+    return currencyChartData.map(point => {
+      const newPoint = { ...point };
+      Object.entries(CURRENCY_MAPPINGS).forEach(([idStr, mapping]) => {
+        const name = mapping?.name || `Currency ${idStr}`;
+        if (newPoint[name] !== undefined) {
+          seenCurrencies.add(name);
+        } else if (seenCurrencies.has(name)) {
+          newPoint[name] = 0;
+        }
+      });
+      return newPoint;
+    });
+  }, [currencyChartData]);
+
+  // Carry over previous values for totalChartData so events that only change 1 currency don't leave gaps.
+  // Backfill initial missing values with the first known value so the chart doesn't start at 0.
+  const filledTotalChartData = useMemo(() => {
+    const firstKnownValues: Record<string, number> = {};
+    for (const point of totalChartData) {
+      Object.entries(CURRENCY_MAPPINGS).forEach(([idStr, mapping]) => {
+        const name = mapping?.name || `Currency ${idStr}`;
+        if (point[name] !== undefined && firstKnownValues[name] === undefined) {
+          firstKnownValues[name] = point[name];
+        }
+      });
+    }
+
+    const lastValues: Record<string, number> = {};
+    return totalChartData.map(point => {
+      const newPoint = { ...point };
+      Object.entries(CURRENCY_MAPPINGS).forEach(([idStr, mapping]) => {
+        const name = mapping?.name || `Currency ${idStr}`;
+        if (newPoint[name] !== undefined) {
+          lastValues[name] = newPoint[name];
+        } else {
+          newPoint[name] = lastValues[name] ?? firstKnownValues[name] ?? 0;
+        }
+      });
+      return newPoint;
+    });
+  }, [totalChartData]);
+
+  // Ensure per-second metrics are available in the stats chart data
+  const extendedStatsData = useMemo(() => {
+    return statsChartData.map((stat, index) => ({
+      ...stat,
+      goldPerMin: filteredRuns[index]?.goldPerMin || 0,
+      soulStonesPerMin: filteredRuns[index]?.soulStonesPerMin || 0
+    }));
+  }, [statsChartData, filteredRuns]);
+
   // Compute average stats for the title bar
   useEffect(() => {
     if (filteredRuns.length === 0) {
-      setRunStats({ avgGoldPerSec: 0, avgSoulStonesPerSec: 0 });
+      setRunStats({ avgGoldPerMin: 0, avgSoulStonesPerMin: 0 });
       return;
     }
-    const totalGoldPerSec = filteredRuns.reduce((sum, run) => sum + run.goldPerSec, 0);
-    const totalSSPerSec = filteredRuns.reduce((sum, run) => sum + run.soulStonesPerSec, 0);
+    const totalGoldPerMin = filteredRuns.reduce((sum, run) => sum + run.goldPerMin, 0);
+    const totalSSPerMin = filteredRuns.reduce((sum, run) => sum + run.soulStonesPerMin, 0);
     setRunStats({
-      avgGoldPerSec: Number((totalGoldPerSec / filteredRuns.length).toFixed(2)),
-      avgSoulStonesPerSec: Number((totalSSPerSec / filteredRuns.length).toFixed(2))
+      avgGoldPerMin: Number((totalGoldPerMin / filteredRuns.length).toFixed(2)),
+      avgSoulStonesPerMin: Number((totalSSPerMin / filteredRuns.length).toFixed(2))
     });
   }, [filteredRuns, setRunStats]);
 
@@ -234,14 +299,14 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
   };
   
   return (
-    <div style={{ marginTop: 20 }}>
+    <div className="runs-table-container">
       <h2>Past Runs Currency Analysis ({selectedProfile})</h2>
 
       {/* --- User Controls --- */}
-      <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      <div className="runs-table-controls">
         
         {/* Currency Toggles */}
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="currency-toggles">
           {Object.entries(CURRENCY_MAPPINGS).map(([idStr, mapping]) => {
             const id = parseInt(idStr, 10);
             const isActive = filters.currencyIds.includes(id);
@@ -250,97 +315,130 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
             return (
               <button
                 key={id}
+                className="currency-toggle-btn"
                 onClick={() => toggleCurrency(id)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
                   opacity: isActive ? 1 : 0.4,
                   border: `2px solid ${color}`,
-                  borderRadius: '6px',
-                  padding: '5px 10px',
                   background: isActive ? `${color}22` : 'transparent',
-                  color: 'white',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
                 }}
               >
-                <img src={mapping.texture} alt={mapping.name} style={{ width: 24, height: 24 }} />
-                <span style={{ fontSize: '14px' }}>{mapping.name}</span>
+                <img src={mapping.texture} alt={mapping.name} />
+                <span>{mapping.name}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* --- Main Chart Display --- */}
-      <div style={{ width: '100%', height: 450, background: '#222', borderRadius: '8px', padding: '15px 0' }}>
-        {currencyChartData.length === 0 ? (
-          <p style={{ color: '#888', textAlign: 'center', paddingTop: 180 }}>
-            No run currency data found for the selected filters.<br/>
-            <i>(Note: Run deltas are only tracked for runs completed while this app is open)</i>
-          </p>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={displayCurrencyData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-              <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#444', borderRadius: '6px' }}
-                itemStyle={{ color: 'white' }}
-              />
-              <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              {filters.currencyIds.map((id) => {
-                const mapping = CURRENCY_MAPPINGS[id];
-                return (
-                  <Line
-                    key={id}
-                    type="monotone"
-                    dataKey={mapping?.name || `Currency ${id}`}
-                    stroke={CHART_COLORS[id % CHART_COLORS.length]}
-                    activeDot={{ r: 8, fill: CHART_COLORS[id % CHART_COLORS.length] }}
-                    strokeWidth={2.5}
-                  />
-                );
-              })}
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+      <div className="chart-row">
+        {/* --- Main Chart Display --- */}
+        <div className="chart-block">
+          <h3 className="chart-title">Gained Currency (Runs + Recycling)</h3>
+          {currencyChartData.length === 0 ? (
+            <p className="chart-empty-message">
+              No run currency data found for the selected filters.<br/>
+              <i>(Note: Run deltas are only tracked for runs completed while this app is open)</i>
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={filledCurrencyChartData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
+                <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />
+                <Tooltip content={<CustomCurrencyTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                {filters.currencyIds.map((id) => {
+                  const mapping = CURRENCY_MAPPINGS[id];
+                  return (
+                    <Line
+                      key={id}
+                      type="monotone"
+                      dataKey={mapping?.name || `Currency ${id}`}
+                      stroke={CHART_COLORS[id % CHART_COLORS.length]}
+                      activeDot={{ r: 8, fill: CHART_COLORS[id % CHART_COLORS.length] }}
+                      strokeWidth={2.5}
+                    />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+  
+        {/* --- Total Currency Chart Display --- */}
+        <div className="chart-block">
+          <h3 className="chart-title">Total Currency Over Time</h3>
+          {totalChartData.length === 0 ? (
+            <p className="chart-empty-message">
+              No total currency data found for the selected filters.<br/>
+              <i>(Note: Events are only tracked while this app is open)</i>
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={filledTotalChartData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
+                <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />
+                <Tooltip content={<CustomCurrencyTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                {filters.currencyIds.map((id) => {
+                  const mapping = CURRENCY_MAPPINGS[id];
+                  return (
+                    <Line key={id} type="monotone" dataKey={mapping?.name || `Currency ${id}`} stroke={CHART_COLORS[id % CHART_COLORS.length]} activeDot={{ r: 8, fill: CHART_COLORS[id % CHART_COLORS.length] }} strokeWidth={2.5} />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* --- Run Stats Chart Display --- */}
-      <div style={{ width: '100%', height: 450, background: '#222', borderRadius: '8px', padding: '15px 0', marginTop: '30px' }}>
-        <h3 style={{ textAlign: 'center', color: '#ccc', margin: '0 0 10px 0' }}>Base Run Statistics</h3>
-        {statsChartData.length === 0 ? (
-          <p style={{ color: '#888', textAlign: 'center', paddingTop: 180 }}>
-            No run data found for the selected filters.
-          </p>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={statsChartData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-              <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-              {/* Use dual Y-Axes to prevent massive numbers crushing the smaller ones */}
-              <YAxis yAxisId="left" stroke="#ccc" tick={{ fill: '#ccc' }} />
-              <YAxis yAxisId="right" orientation="right" stroke="#ccc" tick={{ fill: '#ccc' }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#444', borderRadius: '6px' }}
-                itemStyle={{ color: 'white' }}
-                formatter={(value: any, name: any) => {
-                  if (name === 'Time') {
-                    return [formatTime(Number(value)), name];
-                  }
-                  return [Number(value).toLocaleString(), name];
-                }}
-              />
-              <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              <Line yAxisId="left" type="monotone" dataKey="Gold" stroke="#ffd700" activeDot={{ r: 8 }} strokeWidth={2.5} />
-              <Line yAxisId="left" type="monotone" dataKey="Soul Stones" stroke="#8884d8" activeDot={{ r: 8 }} strokeWidth={2.5} />
-              <Line yAxisId="right" type="monotone" dataKey="Time" stroke="#00C49F" activeDot={{ r: 8 }} strokeWidth={2.5} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+      <div className="chart-row" style={{ marginTop: '40px' }}>
+        <div className="chart-block">
+          <h3 className="chart-title">Run Currencies (Gold & Soul Stones)</h3>
+          {extendedStatsData.length === 0 ? (
+            <p className="chart-empty-message">
+              No run data found for the selected filters.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
+                <YAxis yAxisId="gold" stroke="#ffd700" tick={{ fill: '#ffd700' }} />
+                <YAxis yAxisId="souls" orientation="right" stroke="#8884d8" tick={{ fill: '#8884d8' }} />
+                <Tooltip content={<CustomCurrencyTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Line yAxisId="gold" type="monotone" dataKey="Gold" stroke="#ffd700" activeDot={{ r: 8 }} strokeWidth={2.5} />
+                <Line yAxisId="souls" type="monotone" dataKey="Soul Stones" stroke="#8884d8" activeDot={{ r: 8 }} strokeWidth={2.5} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="chart-block">
+          <h3 className="chart-title">Run Duration & Gold/m</h3>
+          {extendedStatsData.length === 0 ? (
+            <p className="chart-empty-message">
+              No run data found for the selected filters.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
+                <YAxis yAxisId="time" stroke="#00C49F" tick={{ fill: '#00C49F' }} />
+                <YAxis yAxisId="gpm" orientation="right" stroke="#ff7300" tick={{ fill: '#ff7300' }} />
+                <Tooltip content={<CustomCurrencyTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Line yAxisId="time" type="monotone" dataKey="Time" stroke="#00C49F" activeDot={{ r: 8 }} strokeWidth={2.5} />
+                <Line yAxisId="gpm" type="monotone" dataKey="goldPerMin" name="Gold/m" stroke="#ff7300" activeDot={{ r: 8 }} strokeWidth={2.5} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
     </div>
   );

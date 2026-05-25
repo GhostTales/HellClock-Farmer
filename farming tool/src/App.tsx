@@ -28,7 +28,7 @@ export default function App() {
   const [dungeonFilterOpen, setDungeonFilterOpen] = useState(false);
   const [selectedSources, setSelectedSources] = useState<number[]>([0, 2, 3]);
   const [selectedDungeon, setSelectedDungeon] = useState<number | ''>('');
-  const [runStats, setRunStats] = useState({ avgGoldPerSec: 0, avgSoulStonesPerSec: 0 });
+  const [runStats, setRunStats] = useState({ avgGoldPerMin: 0, avgSoulStonesPerMin: 0 });
 
   // Start the save file watcher whenever a profile is actively selected
   useEffect(() => {
