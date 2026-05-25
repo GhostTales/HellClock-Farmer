@@ -172,7 +172,7 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
       const baseCurrencies = runCurrencies[run._runID] || [];
       const recycleCurrencies = recyclingEvents[run._runID.toString()] || [];
 
-      const combinedCurrencies = [...baseCurrencies];
+      const combinedCurrencies = baseCurrencies.map(c => ({ ...c }));
       recycleCurrencies.forEach(rc => {
         const existing = combinedCurrencies.find(c => c.id === rc.id);
         if (existing) {
@@ -342,12 +342,12 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
             </p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={filledCurrencyChartData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
+              <LineChart data={filledCurrencyChartData} margin={{ top: 10, right: 40, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
                 <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />
                 <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Legend />
                 {filters.currencyIds.map((id) => {
                   const mapping = CURRENCY_MAPPINGS[id];
                   return (
@@ -376,12 +376,12 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
             </p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={filledTotalChartData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
+              <LineChart data={filledTotalChartData} margin={{ top: 10, right: 40, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
                 <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />
                 <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Legend />
                 {filters.currencyIds.map((id) => {
                   const mapping = CURRENCY_MAPPINGS[id];
                   return (
@@ -404,13 +404,13 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
             </p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
                 <YAxis yAxisId="gold" stroke="#ffd700" tick={{ fill: '#ffd700' }} />
                 <YAxis yAxisId="souls" orientation="right" stroke="#8884d8" tick={{ fill: '#8884d8' }} />
                 <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Legend />
                 <Line yAxisId="gold" type="monotone" dataKey="Gold" stroke="#ffd700" activeDot={{ r: 8 }} strokeWidth={2.5} />
                 <Line yAxisId="souls" type="monotone" dataKey="Soul Stones" stroke="#8884d8" activeDot={{ r: 8 }} strokeWidth={2.5} />
               </LineChart>
@@ -426,15 +426,15 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
             </p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <YAxis yAxisId="sspm" stroke="#8884d8" tick={{ fill: '#8884d8' }} />
-                <YAxis yAxisId="gpm" orientation="right" stroke="#ff7300" tick={{ fill: '#ff7300' }} />
+                <YAxis yAxisId="gpm" stroke="#ffd700" tick={{ fill: '#ffd700' }} />
+                <YAxis yAxisId="sspm" orientation="right" stroke="#8884d8" tick={{ fill: '#8884d8' }} />
                 <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Legend />
+                <Line yAxisId="gpm" type="monotone" dataKey="goldPerMin" name="Gold/m" stroke="#ffd700" activeDot={{ r: 8 }} strokeWidth={2.5} />
                 <Line yAxisId="sspm" type="monotone" dataKey="soulStonesPerMin" name="Soul Stones/m" stroke="#8884d8" activeDot={{ r: 8 }} strokeWidth={2.5} />
-                <Line yAxisId="gpm" type="monotone" dataKey="goldPerMin" name="Gold/m" stroke="#ff7300" activeDot={{ r: 8 }} strokeWidth={2.5} />
               </LineChart>
             </ResponsiveContainer>
           )}

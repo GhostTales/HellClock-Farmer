@@ -69,3 +69,10 @@ export async function saveCraftingBackup(eventId: string, currencies: ProcessedC
   await dataStore.set('craftingEvents', existingBackups);
   await dataStore.save();
 }
+
+export async function clearTotalAndDeltaGraphData() {
+  await dataStore.set('runCurrencies', {});
+  await dataStore.set('recyclingEvents', {});
+  await dataStore.set('craftingEvents', {});
+  await dataStore.save();
+}

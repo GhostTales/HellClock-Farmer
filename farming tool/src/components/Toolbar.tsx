@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { GAME_OVER_SOURCES, DUNGEON_NAMES } from '../constants';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { confirm } from '@tauri-apps/plugin-dialog';
+import { clearTotalAndDeltaGraphData } from './store';
 
 interface ToolbarProps {
   fileMenuOpen: boolean;
@@ -77,6 +79,14 @@ export function Toolbar({
         {fileMenuOpen && (
           <div className="dropdown-menu">
             <button className="dropdown-item" onClick={handleSelectFolder}>Open Folder...</button>
+            <div style={{ borderTop: '1px solid #444', margin: '4px 0' }} />
+            <button className="dropdown-item" onClick={async () => {
+              setFileMenuOpen(false);
+              const yes = await confirm('Are you sure you want to wipe the Total & Gained Currency graph data?', { title: 'Wipe Data', kind: 'warning' });
+              if (yes) {
+                await clearTotalAndDeltaGraphData();
+              }
+            }}>Wipe Total & Gained Currency Graph</button>
             {recentFolders.length > 0 && (
               <>
                 <div style={{ borderTop: '1px solid #444', margin: '4px 0' }} />
