@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { SaveFile, PastRun } from '../dataManager';
+import { SaveFile, PastRun, dataManager } from '../dataManager';
 import { CURRENCY_MAPPINGS } from '../constants';
 import { dataStore } from './store';
 import { ProcessedCurrency, RunData } from '../types/gameData';
@@ -29,23 +29,93 @@ const CHART_COLORS = ['#6b6858', '#82a1ca', '#ffc658', '#ff7300', '#ff0000', '#0
 
 export function RunsTable({ saveData, selectedSources, selectedProfile, selectedDungeon, setRunStats }: RunsTableProps) {
   const [runCurrencies, setRunCurrencies] = useState<Record<number, ProcessedCurrency[]>>({});
+  const [outOfRunEvents, setOutOfRunEvents] = useState<{eventId: string, isCrafting: boolean, currencies: ProcessedCurrency[]}[]>([]);
+  const [internalSaveData, setInternalSaveData] = useState<SaveFile>(saveData);
+
+  // Sync with prop when parent updates it (e.g. manual refresh or profile switch)
+  useEffect(() => {
+    setInternalSaveData(saveData);
+  }, [saveData]);
 
   // Load our generated currency deltas from the Tauri file store
   useEffect(() => {
     const loadCurrencies = async () => {
       const backups = await dataStore.get<Record<number, ProcessedCurrency[]>>('runCurrencies') || {};
       setRunCurrencies(backups);
+
+      const recycle = await dataStore.get<Record<string, ProcessedCurrency[]>>('recyclingEvents') || {};
+      const craft = await dataStore.get<Record<string, ProcessedCurrency[]>>('craftingEvents') || {};
+      
+      const events: {eventId: string, isCrafting: boolean, currencies: ProcessedCurrency[]}[] = [];
+      Object.entries(recycle).forEach(([eventId, currencies]) => {
+        events.push({ eventId, isCrafting: false, currencies });
+      });
+      Object.entries(craft).forEach(([eventId, currencies]) => {
+        events.push({ eventId, isCrafting: true, currencies: currencies.map(c => ({...c, totalAmount: -c.totalAmount})) });
+      });
+      events.sort((a, b) => Number(a.eventId) - Number(b.eventId));
+      setOutOfRunEvents(events);
     };
     loadCurrencies();
-  }, [saveData]);
+
+    // Subscribe to real-time changes from the save watcher so the UI updates immediately
+    let unlistenRuns: (() => void) | undefined;
+    let unlistenRecycle: (() => void) | undefined;
+    let unlistenCraft: (() => void) | undefined;
+
+    const fetchLatestSave = async () => {
+      if (selectedProfile) {
+        try {
+          const latestSave = await dataManager.getProfileData(selectedProfile);
+          if (latestSave) setInternalSaveData(latestSave);
+        } catch (e) {
+          console.error("Could not fetch latest save profile data", e);
+        }
+      }
+    };
+
+    dataStore.onKeyChange<Record<number, ProcessedCurrency[]>>('runCurrencies', async (newBackups) => {
+      if (newBackups) setRunCurrencies(newBackups);
+      await fetchLatestSave();
+    }).then(fn => unlistenRuns = fn);
+
+    // Also listen for out-of-run events so the current currency point updates
+    dataStore.onKeyChange<Record<string, ProcessedCurrency[]>>('recyclingEvents', async (events) => {
+      if (events) {
+        setOutOfRunEvents(prev => {
+          const craft = prev.filter(p => p.isCrafting);
+          const recycleList = Object.entries(events).map(([eventId, currencies]) => ({ eventId, isCrafting: false, currencies }));
+          const combined = [...craft, ...recycleList].sort((a, b) => Number(a.eventId) - Number(b.eventId));
+          return combined;
+        });
+      }
+      await fetchLatestSave();
+    }).then(fn => unlistenRecycle = fn);
+
+    dataStore.onKeyChange<Record<string, ProcessedCurrency[]>>('craftingEvents', async (events) => {
+      if (events) {
+        setOutOfRunEvents(prev => {
+          const recycle = prev.filter(p => !p.isCrafting);
+          const craftList = Object.entries(events).map(([eventId, currencies]) => ({ eventId, isCrafting: true, currencies: currencies.map(c => ({...c, totalAmount: -c.totalAmount})) }));
+          const combined = [...recycle, ...craftList].sort((a, b) => Number(a.eventId) - Number(b.eventId));
+          return combined;
+        });
+      }
+      await fetchLatestSave();
+    }).then(fn => unlistenCraft = fn);
+
+    return () => {
+      if (unlistenRuns) unlistenRuns();
+      if (unlistenRecycle) unlistenRecycle();
+      if (unlistenCraft) unlistenCraft();
+    };
+  }, [selectedProfile]); // Only recreate listener if the selected profile changes
   
   // Merge the raw runs with our store backups to get the format the chart expects
-  const runs: RunData[] = useMemo(() => {
-    const pastRuns = saveData.pastRunsData?.filter((run: PastRun) => 
-      selectedSources.includes(run._eGameOverSource)
-    ) || [];
+  const allRuns: RunData[] = useMemo(() => {
+    const pastRuns = internalSaveData.pastRunsData || [];
 
-    return pastRuns.map((run: PastRun) => {
+    const runs = pastRuns.map((run: PastRun) => {
       const runTime = extractStat(run, '_statAggregators', 'RunTime');
       const soulStones = extractStat(run, '_statCounters', 'SoulStonesCollected');
       const goldGained = extractStat(run, '_statAggregators', 'GoldGained');
@@ -55,6 +125,7 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
       return {
         id: run._runID,
         sourceId: run._dungeonID,
+        gameOverSource: run._eGameOverSource,
         currencies: runCurrencies[run._runID] || [],
         soulStones,
         soulStonesPerSec,
@@ -63,22 +134,78 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
         runTime
       };
     });
-  }, [saveData, selectedSources, runCurrencies]);
+
+    // Append out-of-run events as pseudo-runs to accurately plot deltas over time
+    if (internalSaveData.currencySaveData && internalSaveData.currencySaveData._persistentData) {
+      const latestRunId = pastRuns.length > 0 ? pastRuns[pastRuns.length - 1]._runID : 0;
+      outOfRunEvents.forEach((event, index) => {
+        const currentCurrencies: ProcessedCurrency[] = internalSaveData.currencySaveData._persistentData.map(c => {
+          const mapping = CURRENCY_MAPPINGS[c._currencyID];
+          const outOfRunMatch = event.currencies.find(o => o.id === c._currencyID);
+          return {
+            id: c._currencyID,
+            name: mapping ? mapping.name : `Currency ${c._currencyID}`,
+            texture: mapping ? mapping.texture : "",
+            totalAmount: outOfRunMatch ? outOfRunMatch.totalAmount : 0,
+            rawAmount: c._amount,
+            rawFragments: c._fragmentAmount
+          };
+        });
+  
+        runs.push({
+          id: latestRunId + 1 + index, // Places them sequentially at the end of the chart timeline
+          sourceId: -1, // Excludes it from standard dungeon filters
+          gameOverSource: -1, // Excludes it from game over filters (Base Stats Chart)
+          currencies: currentCurrencies,
+          soulStones: 0,
+          soulStonesPerSec: 0,
+          goldGained: 0,
+          goldPerSec: 0,
+          runTime: 0
+        });
+      });
+    }
+
+    return runs;
+  }, [internalSaveData, runCurrencies, outOfRunEvents]);
 
   // Set up the custom hook
-  const { filters, setFilters, currencyChartData, statsChartData, filteredRuns } = useChartData(runs, {
+  const { filters, setFilters, currencyChartData, statsChartData, filteredRuns } = useChartData(allRuns, {
     sources: [], // Empty means show all supported dungeons
+    gameOverSources: selectedSources,
     currencyIds: Object.keys(CURRENCY_MAPPINGS).map(Number), // Show all currencies by default
     runIdRange: null
   });
+
+  // Override the X-Axis label for our pseudo-runs
+  const displayCurrencyData = useMemo(() => {
+    if (currencyChartData.length === 0) return [];
+    
+    const latestActualRunId = internalSaveData.pastRunsData?.length > 0 
+      ? internalSaveData.pastRunsData[internalSaveData.pastRunsData.length - 1]._runID 
+      : 0;
+
+    return currencyChartData.map(d => {
+      if (d.runId > latestActualRunId) {
+        const offset = d.runId - latestActualRunId - 1;
+        const event = outOfRunEvents[offset];
+        return {
+          ...d,
+          runName: event ? (event.isCrafting ? "Crafting" : "Recycling") : "Action"
+        };
+      }
+      return d;
+    });
+  }, [currencyChartData, internalSaveData, outOfRunEvents]);
 
   // Sync external selectedDungeon with internal useChartData filter
   useEffect(() => {
     setFilters(prev => ({
       ...prev,
-      sources: selectedDungeon !== '' ? [selectedDungeon] : []
+      sources: selectedDungeon !== '' ? [selectedDungeon] : [],
+      gameOverSources: selectedSources
     }));
-  }, [selectedDungeon, setFilters]);
+  }, [selectedDungeon, selectedSources, setFilters]);
 
   // Compute average stats for the title bar
   useEffect(() => {
@@ -155,7 +282,7 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
           </p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={currencyChartData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
+            <LineChart data={displayCurrencyData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#444" />
               <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
               <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />

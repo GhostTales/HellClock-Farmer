@@ -16,8 +16,8 @@ body {
   background: #2d2d2d; 
   border-bottom: 1px solid #3e3e3e; 
   padding: 0 10px; 
+  user-select: none;
 }
-
 .toolbar-btn { 
   background: transparent; 
   color: #ccc; 
@@ -31,7 +31,7 @@ body {
 .toolbar-btn:disabled { color: #666; cursor: not-allowed; }
 
 .dropdown { position: relative; }
-.dropdown-menu { position: absolute; top: 100%; left: 0; background: #2d2d2d; border: 1px solid #3e3e3e; display: flex; flex-direction: column; min-width: 160px; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+.dropdown-menu { position: absolute; top: 100%; left: 0; background: #2d2d2d; border: 1px solid #3e3e3e; display: flex; flex-direction: column; min-width: 160px; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.3); max-height: 400px; overflow-y: auto; }
 .dropdown-item { background: transparent; color: #ccc; border: none; padding: 10px 15px; text-align: left; cursor: pointer; font-size: 14px; }
 .dropdown-item:hover { background: #3e3e3e; color: #fff; }
 

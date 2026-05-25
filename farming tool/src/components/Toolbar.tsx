@@ -155,7 +155,7 @@ export function Toolbar({
           Dungeon: {selectedDungeon !== '' ? DUNGEON_NAMES[selectedDungeon] : 'All Dungeons'}
         </button>
         {dungeonFilterOpen && (
-          <div className="dropdown-menu" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          <div className="dropdown-menu">
             <button
               className="dropdown-item"
               onClick={() => { setSelectedDungeon(''); setDungeonFilterOpen(false); }}
@@ -183,7 +183,7 @@ export function Toolbar({
       {runStats.avgGoldPerSec > 0 || runStats.avgSoulStonesPerSec > 0 ? (
         <div style={{ marginLeft: '20px', color: '#ccc', fontSize: '13px', display: 'flex', gap: '15px', pointerEvents: 'none' }}>
           <span>Avg Gold/s: <b style={{ color: '#ffd700' }}>{runStats.avgGoldPerSec.toLocaleString()}</b></span>
-          <span>Avg Souls/s: <b style={{ color: '#00C49F' }}>{runStats.avgSoulStonesPerSec.toLocaleString()}</b></span>
+          <span>Avg Souls/s: <b style={{ color: '#8884d8' }}>{runStats.avgSoulStonesPerSec.toLocaleString()}</b></span>
         </div>
       ) : null}
 

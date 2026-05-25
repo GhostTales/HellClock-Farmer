@@ -15,14 +15,40 @@ export async function saveRunCurrencyBackup(runId: number, currencies: Processed
 
 export async function saveRecyclingBackup(eventId: string, currencies: ProcessedCurrency[]) {
   const existingBackups = await dataStore.get<Record<string, ProcessedCurrency[]>>('recyclingEvents') || {};
-  existingBackups[eventId] = currencies;
+  
+  if (existingBackups[eventId]) {
+    currencies.forEach(newC => {
+      const existing = existingBackups[eventId].find(c => c.id === newC.id);
+      if (existing) {
+        existing.totalAmount += newC.totalAmount;
+      } else {
+        existingBackups[eventId].push(newC);
+      }
+    });
+  } else {
+    existingBackups[eventId] = currencies;
+  }
+
   await dataStore.set('recyclingEvents', existingBackups);
   await dataStore.save();
 }
 
 export async function saveCraftingBackup(eventId: string, currencies: ProcessedCurrency[]) {
   const existingBackups = await dataStore.get<Record<string, ProcessedCurrency[]>>('craftingEvents') || {};
-  existingBackups[eventId] = currencies;
+  
+  if (existingBackups[eventId]) {
+    currencies.forEach(newC => {
+      const existing = existingBackups[eventId].find(c => c.id === newC.id);
+      if (existing) {
+        existing.totalAmount += newC.totalAmount;
+      } else {
+        existingBackups[eventId].push(newC);
+      }
+    });
+  } else {
+    existingBackups[eventId] = currencies;
+  }
+
   await dataStore.set('craftingEvents', existingBackups);
   await dataStore.save();
 }

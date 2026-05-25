@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
+import { join } from '@tauri-apps/api/path';
 import { dataManager, SaveFile } from './dataManager';
 import { Toolbar } from './components/Toolbar';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { RunsTable } from './components/RunsTable';
+import { startSaveWatcher } from './components/saveWatcher';
 import './App.css';
 
 export default function App() {
@@ -27,6 +29,28 @@ export default function App() {
   const [selectedSources, setSelectedSources] = useState<number[]>([0, 2, 3]);
   const [selectedDungeon, setSelectedDungeon] = useState<number | ''>('');
   const [runStats, setRunStats] = useState({ avgGoldPerSec: 0, avgSoulStonesPerSec: 0 });
+
+  // Start the save file watcher whenever a profile is actively selected
+  useEffect(() => {
+    let stopWatcher: (() => void) | undefined;
+
+    async function initWatcher() {
+      if (folder && selectedProfile) {
+        try {
+          const fullPath = await join(folder, selectedProfile);
+          stopWatcher = await startSaveWatcher(fullPath);
+        } catch (error) {
+          console.error("[SaveWatcher] Failed to start save watcher:", error);
+        }
+      }
+    }
+
+    initWatcher();
+
+    return () => {
+      if (stopWatcher) stopWatcher();
+    };
+  }, [folder, selectedProfile]);
 
   const openFolder = async (folderPath: string) => {
     setError(null);

@@ -17,6 +17,7 @@ export interface ProcessedCurrency {
 export interface RunData {
   id: number;
   sourceId: number; // Matches your selectedSources
+  gameOverSource?: number;
   
   // Focus on the most important data
   currencies: ProcessedCurrency[];
