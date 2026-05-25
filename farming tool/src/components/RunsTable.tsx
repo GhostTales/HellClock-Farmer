@@ -397,7 +397,7 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
       {/* --- Run Stats Chart Display --- */}
       <div className="chart-row" style={{ marginTop: '40px' }}>
         <div className="chart-block">
-          <h3 className="chart-title">Run Currencies (Gold & Soul Stones)</h3>
+          <h3 className="chart-title">Gold & Soul Stones</h3>
           {extendedStatsData.length === 0 ? (
             <p className="chart-empty-message">
               No run data found for the selected filters.
@@ -419,7 +419,7 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
         </div>
 
         <div className="chart-block">
-          <h3 className="chart-title">Run Duration & Gold/m</h3>
+          <h3 className="chart-title">Soul Stones/m & Gold/m</h3>
           {extendedStatsData.length === 0 ? (
             <p className="chart-empty-message">
               No run data found for the selected filters.
@@ -429,11 +429,11 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
               <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <YAxis yAxisId="time" stroke="#00C49F" tick={{ fill: '#00C49F' }} />
+                <YAxis yAxisId="sspm" stroke="#8884d8" tick={{ fill: '#8884d8' }} />
                 <YAxis yAxisId="gpm" orientation="right" stroke="#ff7300" tick={{ fill: '#ff7300' }} />
                 <Tooltip content={<CustomCurrencyTooltip />} />
                 <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                <Line yAxisId="time" type="monotone" dataKey="Time" stroke="#00C49F" activeDot={{ r: 8 }} strokeWidth={2.5} />
+                <Line yAxisId="sspm" type="monotone" dataKey="soulStonesPerMin" name="Soul Stones/m" stroke="#8884d8" activeDot={{ r: 8 }} strokeWidth={2.5} />
                 <Line yAxisId="gpm" type="monotone" dataKey="goldPerMin" name="Gold/m" stroke="#ff7300" activeDot={{ r: 8 }} strokeWidth={2.5} />
               </LineChart>
             </ResponsiveContainer>
