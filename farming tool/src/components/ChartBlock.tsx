@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import {
   LineChart,
   Line,
@@ -44,9 +46,19 @@ export const ChartBlock = ({ title, emptyMessage, data, lines, yAxes = [{ stroke
   const [showDots, setShowDots] = useState(true);
   const [brushRange, setBrushRange] = useState<{ startIndex?: number, endIndex?: number } | null>(null);
 
-  // Reset the brush range if the number of data points changes
+  // Extend the brush range if the number of data points increases while the brush is active
   useEffect(() => {
-    setBrushRange(null);
+    if (brushRange && typeof brushRange.endIndex === 'number') {
+      const lastIndex = data.length - 1;
+      
+      // Only auto-extend if the user was already looking at the "edge" of the data.
+      if (brushRange.endIndex >= lastIndex - 1) {
+        setBrushRange(prev => prev ? {
+          ...prev,
+          endIndex: lastIndex
+        } : null);
+      }
+    }
   }, [data.length]);
 
   const chartData = useMemo(() => {
@@ -106,12 +118,72 @@ export const ChartBlock = ({ title, emptyMessage, data, lines, yAxes = [{ stroke
     return modifiedData;
   }, [data, lines]);
 
+  // Data representing only the selected range (if using the brush)
+  const visibleData = useMemo(() => {
+    if (brushRange && typeof brushRange.startIndex === 'number' && typeof brushRange.endIndex === 'number') {
+      return chartData.slice(brushRange.startIndex, brushRange.endIndex + 1);
+    }
+    return chartData;
+  }, [chartData, brushRange]);
+
+  const getSafeTitle = () => title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+  const exportJSON = async () => {
+    try {
+      const filePath = await save({
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        defaultPath: `${getSafeTitle()}_data.json`
+      });
+      if (filePath) {
+        await writeTextFile(filePath, JSON.stringify(visibleData, null, 2));
+      }
+    } catch (e) {
+      console.error("Failed to save JSON:", e);
+    }
+  };
+
+  const exportCSV = async () => {
+    if (visibleData.length === 0) return;
+    const keySet = new Set<string>();
+    visibleData.forEach(row => {
+      Object.keys(row).forEach(k => {
+        if (k !== 'runId' && !k.endsWith('_trendline') && !k.endsWith('_ma')) {
+          keySet.add(k);
+        }
+      });
+    });
+    
+    const keys = Array.from(keySet).filter(k => k !== 'runName');
+    keys.unshift('runName');
+
+    const csvStr = [
+      keys.join(','),
+      ...visibleData.map(row => keys.map(k => {
+        let val = row[k];
+        if (val === undefined || val === null) val = '';
+        return `"${String(val).replace(/"/g, '""')}"`;
+      }).join(','))
+    ].join('\n');
+    
+    try {
+      const filePath = await save({
+        filters: [{ name: 'CSV', extensions: ['csv'] }],
+        defaultPath: `${getSafeTitle()}_data.csv`
+      });
+      if (filePath) {
+        await writeTextFile(filePath, csvStr);
+      }
+    } catch (e) {
+      console.error("Failed to save CSV:", e);
+    }
+  };
+
   return (
     <div className="chart-block" style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', marginBottom: '10px' }}>
         <h3 className="chart-title" style={{ margin: 0 }}>{title}</h3>
         <div 
-          style={{ position: 'relative' }}
+          style={{ position: 'absolute', right: 0 }}
           onMouseLeave={() => setShowMenu(false)}
         >
           <button 
@@ -175,6 +247,22 @@ export const ChartBlock = ({ title, emptyMessage, data, lines, yAxes = [{ stroke
                 <input type="checkbox" checked={showDots} readOnly />
                 Show Data Points
               </button>
+              <hr style={{ borderColor: '#444', margin: '4px 0' }} />
+              <div style={{ padding: '4px 8px', color: '#aaa', fontSize: '0.9em', fontWeight: 'bold' }}>Export Data</div>
+              <button 
+                className="dropdown-item" 
+                onClick={(e) => { e.stopPropagation(); exportJSON(); setShowMenu(false); }}
+                style={{ whiteSpace: 'nowrap', width: '100%', textAlign: 'left' }}
+              >
+                JSON
+              </button>
+              <button 
+                className="dropdown-item" 
+                onClick={(e) => { e.stopPropagation(); exportCSV(); setShowMenu(false); }}
+                style={{ whiteSpace: 'nowrap', width: '100%', textAlign: 'left' }}
+              >
+                CSV (Excel)
+              </button>
             </div>
           )}
         </div>
@@ -184,7 +272,11 @@ export const ChartBlock = ({ title, emptyMessage, data, lines, yAxes = [{ stroke
       ) : (
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={margin}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+            <CartesianGrid 
+              strokeDasharray="3 3" 
+              stroke="#444" 
+              yAxisId={yAxes[0]?.id}
+            />
             <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
             {yAxes.map((axis, idx) => (
               <YAxis key={axis.id || idx} yAxisId={axis.id} orientation={axis.orientation || 'left'} stroke={axis.stroke || '#ccc'} tick={{ fill: axis.stroke || '#ccc' }} />
@@ -192,13 +284,13 @@ export const ChartBlock = ({ title, emptyMessage, data, lines, yAxes = [{ stroke
             {tooltipContent ? <Tooltip content={tooltipContent} /> : <Tooltip />}
             <Legend wrapperStyle={{ paddingTop: '20px' }} />
             {lines.map((line, idx) => (
-              <Line key={line.dataKey || idx} yAxisId={line.yAxisId} type="monotone" dataKey={line.dataKey} name={line.name} stroke={line.stroke} activeDot={{ r: 8, fill: line.stroke }} strokeWidth={2.5} dot={showDots} />
+              <Line key={line.dataKey || idx} yAxisId={line.yAxisId} type="monotone" dataKey={line.dataKey} name={line.name} stroke={line.stroke} activeDot={{ r: 8, fill: line.stroke }} strokeWidth={2.5} dot={showDots} isAnimationActive={false} />
             ))}
             {showTrendlines && lines.map((line, idx) => (
-              <Line key={`trend_${line.dataKey || idx}`} yAxisId={line.yAxisId} type="monotone" dataKey={`${line.dataKey}_trendline`} name={`${line.name || line.dataKey} (Trend)`} stroke={line.stroke} strokeDasharray="5 5" dot={false} activeDot={false} strokeWidth={2} opacity={0.6} legendType="none" />
+              <Line key={`trend_${line.dataKey || idx}`} yAxisId={line.yAxisId} type="monotone" dataKey={`${line.dataKey}_trendline`} name={`${line.name || line.dataKey} (Trend)`} stroke={line.stroke} strokeDasharray="5 5" dot={false} activeDot={false} strokeWidth={2} opacity={0.6} legendType="none" isAnimationActive={false} />
             ))}
             {showMovingAverage && lines.map((line, idx) => (
-              <Line key={`ma_${line.dataKey || idx}`} yAxisId={line.yAxisId} type="monotone" dataKey={`${line.dataKey}_ma`} name={`${line.name || line.dataKey} (5-MA)`} stroke={line.stroke} strokeDasharray="3 3" dot={false} activeDot={false} strokeWidth={2} opacity={0.6} legendType="none" />
+              <Line key={`ma_${line.dataKey || idx}`} yAxisId={line.yAxisId} type="monotone" dataKey={`${line.dataKey}_ma`} name={`${line.name || line.dataKey} (5-MA)`} stroke={line.stroke} strokeDasharray="3 3" dot={false} activeDot={false} strokeWidth={2} opacity={0.6} legendType="none" isAnimationActive={false} />
             ))}
             {showBrush && (
               <Brush 

@@ -13,6 +13,17 @@ export const CustomCurrencyTooltip = ({ active, payload, label }: any) => {
       return !name.endsWith(' (Trend)') && !name.endsWith(' (5-MA)');
     });
 
+    // If 'Time' exists in the raw data point but isn't explicitly a line on the chart,
+    // inject it into the payload so it appears in the tooltip.
+    const rawData = payload[0].payload;
+    if (rawData && typeof rawData.Time === 'number' && !filteredPayload.some((e: any) => e.name === 'Time')) {
+      filteredPayload.push({
+        name: 'Time',
+        value: rawData.Time,
+        color: '#ccc'
+      });
+    }
+
     // Sort the payload to guarantee a consistent order
     const sortedPayload = [...filteredPayload].sort((a: any, b: any) => {
       if (a.name === 'Time') return -1;
