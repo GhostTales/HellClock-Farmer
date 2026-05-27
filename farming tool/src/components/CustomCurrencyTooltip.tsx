@@ -1,5 +1,6 @@
 import { CURRENCY_MAPPINGS } from '../constants';
 import { formatTime } from '../utils/formatters';
+import './CustomCurrencyTooltip.css';
 
 export const CustomCurrencyTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {

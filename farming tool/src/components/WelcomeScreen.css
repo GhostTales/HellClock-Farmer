@@ -1,0 +1,14 @@
+.welcome-screen { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+  height: 100%; 
+  text-align: center; 
+}
+
+.btn-primary { 
+  background: #4dabf7; color: #1e1e1e; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; margin-top: 20px; font-weight: bold; 
+}
+
+.btn-primary:hover { background: #3b8bdc; }

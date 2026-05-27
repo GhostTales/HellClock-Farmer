@@ -11,6 +11,7 @@ import {
   Brush
 } from 'recharts';
 import optionsIcon from '/textures/UI_Icon_Options.png?url';
+import './ChartBlock.css';
 
 export interface ChartLineConfig {
   dataKey: string;

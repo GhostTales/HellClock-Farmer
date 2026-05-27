@@ -3,6 +3,7 @@ import { GAME_OVER_SOURCES, DUNGEON_NAMES } from '../constants';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { clearTotalAndDeltaGraphData } from './store';
+import './Toolbar.css';
 
 interface ToolbarProps {
   fileMenuOpen: boolean;

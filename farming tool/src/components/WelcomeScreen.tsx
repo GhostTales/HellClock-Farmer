@@ -1,3 +1,5 @@
+import './WelcomeScreen.css';
+
 interface WelcomeScreenProps {
   onSelectFolder: () => void;
   error: string | null;
