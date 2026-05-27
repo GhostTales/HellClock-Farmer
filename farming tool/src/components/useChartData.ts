@@ -15,24 +15,25 @@ export function useChartData(
   initialFilters: FilterOptions
 ) {
   const [filters, setFilters] = useState<FilterOptions>(initialFilters);
+  const { sources, gameOverSources, runIdRange, currencyIds } = filters;
 
   // 1. Filter the raw runs based on user selection
   const filteredRuns = useMemo(() => {
     return runs.filter(run => {
       // Filter by source
-      if (filters.sources.length > 0 && !filters.sources.includes(run.sourceId)) return false;
+      if (sources.length > 0 && !sources.includes(run.sourceId)) return false;
 
       // Filter by game over source
-      if (filters.gameOverSources.length > 0 && run.gameOverSource !== undefined && !filters.gameOverSources.includes(run.gameOverSource)) return false;
+      if (gameOverSources.length > 0 && run.gameOverSource !== undefined && !gameOverSources.includes(run.gameOverSource)) return false;
       
       // Filter by Run ID range
-      if (filters.runIdRange) {
-        if (run.id < filters.runIdRange[0] || run.id > filters.runIdRange[1]) return false;
+      if (runIdRange) {
+        if (run.id < runIdRange[0] || run.id > runIdRange[1]) return false;
       }
 
       return true;
     });
-  }, [runs, filters]);
+  }, [runs, sources, gameOverSources, runIdRange]);
 
   // 2. Transform the data for a Line or Bar Chart (e.g., Currency Over Time)
   // Charting libraries prefer flat objects: { name: 'Run 1', Gold: 100, Gems: 5 }
@@ -42,8 +43,8 @@ export function useChartData(
     return runs
       .filter(run => run.currencies && run.currencies.length > 0) // Skip gaps where no currency data was tracked
       .filter(run => {
-        if (filters.runIdRange) {
-          if (run.id < filters.runIdRange[0] || run.id > filters.runIdRange[1]) return false;
+        if (runIdRange) {
+          if (run.id < runIdRange[0] || run.id > runIdRange[1]) return false;
         }
         return true;
       })
@@ -55,14 +56,14 @@ export function useChartData(
       
       run.currencies.forEach(currency => {
         // Only include currencies the user wants to see
-        if (filters.currencyIds.length === 0 || filters.currencyIds.includes(currency.id)) {
+        if (currencyIds.length === 0 || currencyIds.includes(currency.id)) {
           dataPoint[currency.name] = currency.totalAmount;
         }
       });
       
       return dataPoint;
     });
-  }, [runs, filters.currencyIds, filters.runIdRange]);
+  }, [runs, currencyIds, runIdRange]);
 
   // 3. Transform the raw stats (Gold, SoulStones, etc.) for a separate chart
   const statsChartData = useMemo(() => {
@@ -81,8 +82,8 @@ export function useChartData(
 
     // Add runs (which include recycling)
     runs.forEach(run => {
-      if (filters.runIdRange) {
-        if (run.id < filters.runIdRange[0] || run.id > filters.runIdRange[1]) return;
+      if (runIdRange) {
+        if (run.id < runIdRange[0] || run.id > runIdRange[1]) return;
       }
       if (!run.currencies || run.currencies.length === 0) return;
       
@@ -93,7 +94,7 @@ export function useChartData(
       };
       
       run.currencies.forEach(currency => {
-        if (filters.currencyIds.length === 0 || filters.currencyIds.includes(currency.id)) {
+        if (currencyIds.length === 0 || currencyIds.includes(currency.id)) {
           dataPoint[currency.name] = getCurrencyTotal(currency.rawAmount, currency.rawFragments);
         }
       });
@@ -103,8 +104,8 @@ export function useChartData(
     // Add crafting events
     Object.entries(craftingEvents).forEach(([eventId, currencies]) => {
       const runId = parseInt(eventId, 10);
-      if (filters.runIdRange) {
-        if (runId < filters.runIdRange[0] || runId > filters.runIdRange[1]) return;
+      if (runIdRange) {
+        if (runId < runIdRange[0] || runId > runIdRange[1]) return;
       }
 
       const dataPoint: Record<string, any> = {
@@ -114,7 +115,7 @@ export function useChartData(
       };
       
       currencies.forEach(currency => {
-        if (filters.currencyIds.length === 0 || filters.currencyIds.includes(currency.id)) {
+        if (currencyIds.length === 0 || currencyIds.includes(currency.id)) {
           dataPoint[currency.name] = getCurrencyTotal(currency.rawAmount, currency.rawFragments);
         }
       });
@@ -122,7 +123,7 @@ export function useChartData(
     });
 
     return dataPoints.sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [runs, craftingEvents, filters.currencyIds, filters.runIdRange]);
+  }, [runs, craftingEvents, currencyIds, runIdRange]);
 
   return { filters, setFilters, currencyChartData, statsChartData, totalChartData, filteredRuns };
 }

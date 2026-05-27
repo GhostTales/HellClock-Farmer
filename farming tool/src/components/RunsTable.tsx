@@ -5,16 +5,8 @@ import { dataStore } from './store';
 import { ProcessedCurrency, RunData } from '../types/gameData';
 import { useChartData } from './useChartData';
 import { formatTime, calculatePerSec, extractStat} from '../utils/formatters';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
+import { ChartBlock, ChartLineConfig, ChartYAxisConfig } from './ChartBlock';
+import { CustomCurrencyTooltip } from './CustomCurrencyTooltip';
 import './RunsTable.css';
 
 interface RunsTableProps {
@@ -28,72 +20,27 @@ interface RunsTableProps {
 // A simple palette for the lines on the graph
 const CHART_COLORS = ['#6b6858', '#82a1ca', '#ffc658', '#ff7300', '#ff0000', '#00C49F', '#37be2a', '#8a37ce', '#c1cad1'];
 
-const CustomCurrencyTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="custom-tooltip">
-        <p className="custom-tooltip-title">{label}</p>
-        {payload
-          .filter((entry: any) => Number(entry.value) !== 0 || entry.name === 'Time')
-          .map((entry: any, index: number) => {
-          const name = entry.name;
-          const value = Number(entry.value);
-          
-          if (name === 'Time') {
-            return (
-              <div key={index} className="custom-tooltip-row" style={{ color: entry.color }}>
-                <span>{name}:</span>
-                <span className="custom-tooltip-value">{formatTime(value)}</span>
-              </div>
-            );
-          }
+const CUSTOM_TOOLTIP = <CustomCurrencyTooltip />;
 
-          // Check if this is a mapped currency
-          const mapping = Object.values(CURRENCY_MAPPINGS).find((m: any) => m.name === name) as any;
-          
-          if (mapping) {
-            const isTinkering = name.toLowerCase().includes('tinkering');
-            const absValue = Math.abs(value);
-            const full = Math.floor(absValue);
-            const fragments = isTinkering ? 0 : Math.round((absValue - full) * 6);
-            
-            const isNegative = value < 0;
-            const fullSign = (isNegative && (full > 0 || isTinkering)) ? '-' : '';
-            const fragSign = isNegative ? '-' : '';
+const STATS_MARGIN = { top: 10, right: 10, left: 10, bottom: 25 };
 
-            return (
-              <div key={index} className="custom-tooltip-row" style={{ color: entry.color }}>
-                <div className="custom-tooltip-group">
-                  {mapping.texture && <img src={mapping.texture} alt={name} className="custom-tooltip-icon" />}
-                  <span className="custom-tooltip-value mapped">
-                    {fullSign}{isTinkering ? absValue.toLocaleString(undefined, { maximumFractionDigits: 3 }) : full.toLocaleString()}
-                  </span>
-                </div>
-                {!isTinkering && (
-                  <div className="custom-tooltip-group fragment">
-                    <img src={mapping.fragmentTexture} alt={`Fragment`} className="custom-tooltip-icon" />
-                    <span className="custom-tooltip-fragment-text">{fragSign}{fragments}</span>
-                  </div>
-                )}
-              </div>
-            );
-          }
+const GOLD_SOULS_YAXES: ChartYAxisConfig[] = [
+  { id: "gold", stroke: "#ffd700" },
+  { id: "souls", orientation: "right", stroke: "#8884d8" }
+];
+const GOLD_SOULS_LINES: ChartLineConfig[] = [
+  { dataKey: "Gold", stroke: "#ffd700", yAxisId: "gold" },
+  { dataKey: "Soul Stones", stroke: "#8884d8", yAxisId: "souls" }
+];
 
-          // Fallback for Gold, Soul Stones, or unknown currencies
-          return (
-            <div key={index} className="custom-tooltip-row" style={{ color: entry.color }}>
-              <span>{name}:</span>
-              <span className="custom-tooltip-value">
-                {value.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-  return null;
-};
+const GPM_SSPM_YAXES: ChartYAxisConfig[] = [
+  { id: "gpm", stroke: "#ffd700" },
+  { id: "sspm", orientation: "right", stroke: "#8884d8" }
+];
+const GPM_SSPM_LINES: ChartLineConfig[] = [
+  { dataKey: "goldPerMin", name: "Gold/m", stroke: "#ffd700", yAxisId: "gpm" },
+  { dataKey: "soulStonesPerMin", name: "Soul Stones/m", stroke: "#8884d8", yAxisId: "sspm" }
+];
 
 export function RunsTable({ saveData, selectedSources, selectedProfile, selectedDungeon, setRunStats }: RunsTableProps) {
   const [runCurrencies, setRunCurrencies] = useState<Record<number, ProcessedCurrency[]>>({});
@@ -289,15 +236,31 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
   const toggleCurrency = (id: number) => {
     setFilters(prev => {
       const active = prev.currencyIds.includes(id);
+      const newCurrencyIds = active
+        ? prev.currencyIds.filter(cId => cId !== id)
+        : [...prev.currencyIds, id];
+        
+      // Maintain consistent ordering based on CURRENCY_MAPPINGS
+      const allIds = Object.keys(CURRENCY_MAPPINGS).map(Number);
+      newCurrencyIds.sort((a, b) => allIds.indexOf(a) - allIds.indexOf(b));
+
       return {
         ...prev,
-        currencyIds: active
-          ? prev.currencyIds.filter(cId => cId !== id)
-          : [...prev.currencyIds, id]
+        currencyIds: newCurrencyIds
       };
     });
   };
   
+  const currencyLines: ChartLineConfig[] = useMemo(() => {
+    return filters.currencyIds.map((id) => {
+      const mapping = CURRENCY_MAPPINGS[id];
+      return {
+        dataKey: mapping?.name || `Currency ${id}`,
+        stroke: CHART_COLORS[id % CHART_COLORS.length]
+      };
+    });
+  }, [filters.currencyIds]);
+
   return (
     <div className="runs-table-container">
       <h2>Past Runs Currency Analysis ({selectedProfile})</h2>
@@ -333,112 +296,45 @@ export function RunsTable({ saveData, selectedSources, selectedProfile, selected
 
       <div className="chart-row">
         {/* --- Main Chart Display --- */}
-        <div className="chart-block">
-          <h3 className="chart-title">Gained Currency (Runs + Recycling)</h3>
-          {currencyChartData.length === 0 ? (
-            <p className="chart-empty-message">
-              No run currency data found for the selected filters.<br/>
-              <i>(Note: Run deltas are only tracked for runs completed while this app is open)</i>
-            </p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={filledCurrencyChartData} margin={{ top: 10, right: 40, left: 10, bottom: 25 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend />
-                {filters.currencyIds.map((id) => {
-                  const mapping = CURRENCY_MAPPINGS[id];
-                  return (
-                    <Line
-                      key={id}
-                      type="monotone"
-                      dataKey={mapping?.name || `Currency ${id}`}
-                      stroke={CHART_COLORS[id % CHART_COLORS.length]}
-                      activeDot={{ r: 8, fill: CHART_COLORS[id % CHART_COLORS.length] }}
-                      strokeWidth={2.5}
-                    />
-                  );
-                })}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        <ChartBlock
+          title="Gained Currency (Runs + Recycling)"
+          emptyMessage={<>No run currency data found for the selected filters.<br/><i>(Note: Run deltas are only tracked for runs completed while this app is open)</i></>}
+          data={filledCurrencyChartData}
+          lines={currencyLines}
+          tooltipContent={CUSTOM_TOOLTIP}
+        />
   
         {/* --- Total Currency Chart Display --- */}
-        <div className="chart-block">
-          <h3 className="chart-title">Total Currency Over Time</h3>
-          {totalChartData.length === 0 ? (
-            <p className="chart-empty-message">
-              No total currency data found for the selected filters.<br/>
-              <i>(Note: Events are only tracked while this app is open)</i>
-            </p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={filledTotalChartData} margin={{ top: 10, right: 40, left: 10, bottom: 25 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <YAxis stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend />
-                {filters.currencyIds.map((id) => {
-                  const mapping = CURRENCY_MAPPINGS[id];
-                  return (
-                    <Line key={id} type="monotone" dataKey={mapping?.name || `Currency ${id}`} stroke={CHART_COLORS[id % CHART_COLORS.length]} activeDot={{ r: 8, fill: CHART_COLORS[id % CHART_COLORS.length] }} strokeWidth={2.5} />
-                  );
-                })}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        <ChartBlock
+          title="Total Currency Over Time"
+          emptyMessage={<>No total currency data found for the selected filters.<br/><i>(Note: Events are only tracked while this app is open)</i></>}
+          data={filledTotalChartData}
+          lines={currencyLines}
+          tooltipContent={CUSTOM_TOOLTIP}
+        />
       </div>
 
       {/* --- Run Stats Chart Display --- */}
       <div className="chart-row" style={{ marginTop: '40px' }}>
-        <div className="chart-block">
-          <h3 className="chart-title">Gold & Soul Stones</h3>
-          {extendedStatsData.length === 0 ? (
-            <p className="chart-empty-message">
-              No run data found for the selected filters.
-            </p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 25 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <YAxis yAxisId="gold" stroke="#ffd700" tick={{ fill: '#ffd700' }} />
-                <YAxis yAxisId="souls" orientation="right" stroke="#8884d8" tick={{ fill: '#8884d8' }} />
-                <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend />
-                <Line yAxisId="gold" type="monotone" dataKey="Gold" stroke="#ffd700" activeDot={{ r: 8 }} strokeWidth={2.5} />
-                <Line yAxisId="souls" type="monotone" dataKey="Soul Stones" stroke="#8884d8" activeDot={{ r: 8 }} strokeWidth={2.5} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        <ChartBlock
+          title="Gold & Soul Stones"
+          emptyMessage="No run data found for the selected filters."
+          data={extendedStatsData}
+          margin={STATS_MARGIN}
+          yAxes={GOLD_SOULS_YAXES}
+          lines={GOLD_SOULS_LINES}
+          tooltipContent={CUSTOM_TOOLTIP}
+        />
 
-        <div className="chart-block">
-          <h3 className="chart-title">Soul Stones/m & Gold/m</h3>
-          {extendedStatsData.length === 0 ? (
-            <p className="chart-empty-message">
-              No run data found for the selected filters.
-            </p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={extendedStatsData} margin={{ top: 10, right: 10, left: 10, bottom: 25 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis dataKey="runName" stroke="#ccc" tick={{ fill: '#ccc' }} />
-                <YAxis yAxisId="gpm" stroke="#ffd700" tick={{ fill: '#ffd700' }} />
-                <YAxis yAxisId="sspm" orientation="right" stroke="#8884d8" tick={{ fill: '#8884d8' }} />
-                <Tooltip content={<CustomCurrencyTooltip />} />
-                <Legend />
-                <Line yAxisId="gpm" type="monotone" dataKey="goldPerMin" name="Gold/m" stroke="#ffd700" activeDot={{ r: 8 }} strokeWidth={2.5} />
-                <Line yAxisId="sspm" type="monotone" dataKey="soulStonesPerMin" name="Soul Stones/m" stroke="#8884d8" activeDot={{ r: 8 }} strokeWidth={2.5} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        <ChartBlock
+          title="Soul Stones/m & Gold/m"
+          emptyMessage="No run data found for the selected filters."
+          data={extendedStatsData}
+          margin={STATS_MARGIN}
+          yAxes={GPM_SSPM_YAXES}
+          lines={GPM_SSPM_LINES}
+          tooltipContent={CUSTOM_TOOLTIP}
+        />
       </div>
     </div>
   );
