@@ -1,5 +1,8 @@
 name: Tauri Build
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch: # Allows you to run this manually from the Actions tab
   push:
@@ -35,7 +38,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Setup Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -51,3 +54,15 @@ jobs:
         with:
           projectPath: "farming tool"
           args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: "HellClock Farmer ${{ github.ref_name }}"
+          draft: true
+
+      - name: Upload artifacts for manual download
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.platform }}
+          path: |
+            farming tool/src-tauri/target/release/bundle/appimage/*.AppImage
+            farming tool/src-tauri/target/release/bundle/msi/*.msi
+            farming tool/src-tauri/target/release/bundle/deb/*.deb
